@@ -1727,13 +1727,13 @@ FxScriptRegisterFlag FxScriptBCEmitter::RegToRegFlag(FxScriptRegister reg)
 void FxScriptBCEmitter::Write16(uint16 value)
 {
     mBytecode.Insert(static_cast<uint8>(value >> 8));
-    mBytecode.Insert(static_cast<uint8>(value & 0x00FF));
+    mBytecode.Insert(static_cast<uint8>(value));
 }
 
 void FxScriptBCEmitter::Write32(uint32 value)
 {
-    Write16(static_cast<uint8>(value >> 16));
-    Write16(static_cast<uint8>(value & 0xFFFF));
+    Write16(static_cast<uint16>(value >> 16));
+    Write16(static_cast<uint16>(value));
 }
 
 void FxScriptBCEmitter::WriteOp(uint8 op_base, uint8 op_spec)
@@ -2178,21 +2178,24 @@ void FxScriptBCEmitter::DoActionCall(FxAstActionCall* call)
 
     FxScriptBytecodeActionHandle* handle = FindActionHandle(call->HashedName);
 
-
-
-    /*if (!handle) {
-        printf("!!! could not find action to call!\n");
-        return;
-    }*/
-
     // Push all params to stack
     for (FxAstNode* param : call->Params) {
         FxScriptRegister reg = EmitRhs(param, RhsMode::RHS_DEFINE);
         MARK_REGISTER_FREE(reg);
     }
 
+    // The handle could not be found, write it as a possible external symbol.
     if (!handle) {
+        printf("Call name-> %u\n", call->HashedName);
+
+        // Since popping the parameters are handled internally in the VM,
+        // we need to decrement the stack offset here.
+        for (FxAstNode* param : call->Params) {
+            mStackOffset -= 4;
+        }
+
         EmitJumpCallExternal(call->HashedName);
+
         return;
     }
 
@@ -2341,14 +2344,8 @@ uint16 FxScriptBCPrinter::Read16()
 
 uint32 FxScriptBCPrinter::Read32()
 {
-    uint16 lo_value = mBytecodeIndex++;
-    uint16 hi_value = mBytecodeIndex++;
-
-    uint8 lo = (static_cast<uint16>(mBytecode[lo_value]) << 8) | mBytecode[hi_value];
-
-    lo_value = mBytecodeIndex++;
-    hi_value = mBytecodeIndex++;
-    uint8 hi = (static_cast<uint16>(mBytecode[lo_value]) << 8) | mBytecode[hi_value];
+    uint16 lo = Read16();
+    uint16 hi = Read16();
 
     return ((static_cast<uint32>(lo) << 16) | hi);
 }
@@ -2512,8 +2509,7 @@ void FxScriptVM::PrintRegisters()
 {
     printf("\n=== Register Dump ===\n\n");
     printf("X0=%u\tX1=%u\tX2=%u\tX3=%u\n",
-        Registers[FX_REG_X0], Registers[FX_REG_X1], Registers[FX_REG_X2],
-        Registers[FX_REG_X3]);
+        Registers[FX_REG_X0], Registers[FX_REG_X1], Registers[FX_REG_X2], Registers[FX_REG_X3]);
 
     printf("XR=%u\tRA=%u\n", Registers[FX_REG_XR], Registers[FX_REG_RA]);
 
@@ -2530,14 +2526,8 @@ uint16 FxScriptVM::Read16()
 
 uint32 FxScriptVM::Read32()
 {
-    uint8 first_byte = mBytecode[mPC++];
-    uint8 second_byte = mBytecode[mPC++];
-
-    uint8 lo = (static_cast<uint16>(first_byte) << 8) | second_byte;
-
-    first_byte = mBytecode[mPC++];
-    second_byte = mBytecode[mPC++];
-    uint8 hi = (static_cast<uint16>(first_byte) << 8) | second_byte;
+    uint16 lo = Read16();
+    uint16 hi = Read16();
 
     return ((static_cast<uint32>(lo) << 16) | hi);
 }
@@ -2643,6 +2633,13 @@ void FxScriptVM::ExecuteOp()
         DoSave(op_base, op_spec);
         break;
     }
+
+    if (op_base == OpBase_Push) {
+        ++mPotentialArgsPushed;
+    }
+    else {
+        mPotentialArgsPushed = 0;
+    }
 }
 
 void FxScriptVM::DoLoad(uint8 op_base, uint8 op_spec_raw)
@@ -2711,8 +2708,8 @@ void FxScriptVM::DoSave(uint8 op_base, uint8 op_spec)
     }
     else {
         // The offset is relative to the stack pointer, get the absolute value
-        const int16 relative_offset = Read16();
-        offset = Registers[FX_REG_SP] + relative_offset;
+        const int16 relative_offset = static_cast<int16>(Read16());
+        offset = static_cast<uint32>(Registers[FX_REG_SP] + relative_offset);
     }
 
     uint32* dataptr = reinterpret_cast<uint32*>(&Stack[offset]);
@@ -2781,7 +2778,7 @@ void FxScriptVM::DoJump(uint8 op_base, uint8 op_spec)
         std::vector<FxScriptValue> params;
         params.reserve(external_func->ParameterTypes.size());
 
-        for (FxScriptValue::ValueType param_type : external_func->ParameterTypes) {
+        for (int i = 0; i < mPotentialArgsPushed; i++) {
             FxScriptValue value;
             value.Type = FxScriptValue::INT;
             value.ValueInt = Pop32();

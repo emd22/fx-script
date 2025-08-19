@@ -781,6 +781,8 @@ private:
 
     FxScriptVMCallFrame mCallFrames[8];
     int mCallFrameIndex = 0;
+
+    int mPotentialArgsPushed = 0;
 };
 
 ////////////////////////////////////////////////

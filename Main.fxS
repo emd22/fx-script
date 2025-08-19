@@ -6,4 +6,6 @@ action test_action(int x, int y)
     rval = x + y;
 }
 
+log(g_value);
+
 g_value = test_action(30, 40);

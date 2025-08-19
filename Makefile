@@ -20,3 +20,6 @@ $(BUILD_DIR):
 
 clean:
 	rm -r $(BUILD_DIR)
+
+run: $(TARGET)
+	./$(TARGET)
