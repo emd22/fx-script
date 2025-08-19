@@ -5,3 +5,6 @@ fxscript
 .zed
 .vscode
 *.o
+
+.cache/**/*
+.cache
