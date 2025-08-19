@@ -1,0 +1,9 @@
+local int g_value = 20;
+
+action test_action(int x, int y)
+    int rval
+{
+    rval = x + y;
+}
+
+g_value = test_action(30, 40);

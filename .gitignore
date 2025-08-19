@@ -1,0 +1,7 @@
+build/*
+build/**/*
+fxscript
+.DS_Store
+.zed
+.vscode
+*.o
