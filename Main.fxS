@@ -1,11 +1,8 @@
-local int g_value = 20;
 
 action test_action(int x, int y)
-    int rval
 {
-    rval = x + y;
+	local int value = x + y;
+	log("Value: ", value);
 }
 
-log(g_value);
-
-g_value = test_action(30, 40);
+test_action(5, 7);

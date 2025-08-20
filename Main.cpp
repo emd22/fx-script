@@ -13,9 +13,9 @@ int main()
 
 	script.DefineExternalVar("playerid", "emd22", FxScriptValue(FxScriptValue::INT, 1020));
 
-	FxScriptInterpreter interpreter;
+	FxScriptVM vm ;
 
-	script.Execute(interpreter);
+	script.Execute(vm);
 
 	std::string command = "";
 
