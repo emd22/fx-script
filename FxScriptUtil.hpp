@@ -115,15 +115,19 @@ inline constexpr FxHash FxHashStr(const char *str)
 }
 
 
+#include <exception>
+#include <iostream>
+
 #define FX_BREAKPOINT __builtin_trap()
 
 template <typename T, typename... Types>
 void FxPanic(const char* const module, const char* fmt, T first, Types... items)
 {
-    printf(fmt, items...);
+    // printf(fmt, items...);
+    ((std::cout << items), ...);
     printf("\n");
 
-    // std::terminate();
+    std::terminate();
 }
 
 /**

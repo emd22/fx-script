@@ -1,5 +1,6 @@
 CXX := cc
-CXXFLAGS := -std=c++20 -Wall -g -lc++
+CXXFLAGS := -std=c++20 -Wall -g
+LINKFLAGS := -lc++
 
 BUILD_DIR := build
 
@@ -10,7 +11,7 @@ TARGET := fxscript
 all: $(TARGET)
 
 $(TARGET): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(LINKFLAGS) -o $@ $^
 
 $(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
