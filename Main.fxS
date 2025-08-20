@@ -1,7 +1,12 @@
 
+action take_five() int r
+{
+    r = 5;
+}
+
 action test_action(int x, int y)
 {
-	local int value = x + y;
+	local int value = take_five() + 7;
 	log("Value: ", value);
 }
 

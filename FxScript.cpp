@@ -483,10 +483,10 @@ FxScriptValue FxConfigScript::ParseValue()
             return (rval_); \
     }
 
-// static bool IsTokenTypeLiteral(FxTokenizer::TokenType type)
-// {
-//     return (type == TT::Integer || type == TT::Float || type == TT::String);
-// }
+static bool IsTokenTypeLiteral(FxTokenizer::TokenType type)
+{
+    return (type == TT::Integer || type == TT::Float || type == TT::String);
+}
 
 FxAstNode* FxConfigScript::ParseRhs()
 {
@@ -506,41 +506,55 @@ FxAstNode* FxConfigScript::ParseRhs()
 
     FxTokenizer::Token& token = GetToken();
 
+    FxAstNode* lhs = nullptr;
+
     if (token.Type == TT::Identifier) {
         if (has_parameters) {
-            return ParseActionCall();
+            lhs =  ParseActionCall();
         }
         else {
             FxScriptExternalFunc* external_action = FindExternalAction(token.GetHash());
             if (external_action != nullptr) {
-                return ParseActionCall();
+                lhs =  ParseActionCall();
             }
 
             FxScriptAction* action = FindAction(token.GetHash());
             if (action != nullptr) {
-                return ParseActionCall();
+                lhs =  ParseActionCall();
             }
 
         }
     }
+    if (!lhs) {
+        if (IsTokenTypeLiteral(token.Type) || token.Type == TT::Identifier) {
+            FxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FxAstLiteral);
 
-    FxScriptValue value = ParseValue();
+            FxScriptValue value = ParseValue();
+            literal->Value = value;
 
-    FxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FxAstLiteral);
-    literal->Value = value;
+            lhs = literal;
+        }
+        else {
+            lhs = ParseRhs();
+        }
+    }
+
+
+    // FxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FxAstLiteral);
+    // literal->Value = value;
 
     TT op_type = GetToken(0).Type;
     if (op_type == TT::Plus || op_type == TT::Minus) {
         FxAstBinop* binop = FX_SCRIPT_ALLOC_NODE(FxAstBinop);
 
-        binop->Left = literal;
+        binop->Left = lhs;
         binop->OpToken = &EatToken(op_type);
         binop->Right = ParseRhs();
 
         return binop;
     }
 
-    return literal;
+    return lhs;
 
     /*
     RETURN_IF_NO_TOKENS(nullptr);
