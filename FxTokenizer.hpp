@@ -514,11 +514,11 @@ public:
         char ch;
 
         while (mData < mDataEnd && ((ch = *(mData)))) {
-            if (ch == '#') {
+            if (ch == '/' && ((mData + 1) < mDataEnd) && ((*(mData + 1)) == '/')) {
                 SubmitTokenIfData(current_token);
                 in_comment = true;
 
-                //++mData;
+                ++mData;
                 if (*(++mData) == '?') {
                     while ((ch = *(++mData))) {
                         if (isalnum(ch) || ch == '\n') {
@@ -529,6 +529,21 @@ public:
                     is_doccomment = true;
                 }
             }
+
+            if (ch == '/' && ((mData + 1) < mDataEnd) && ((*(mData + 1)) == '*')) {
+                SubmitTokenIfData(current_token);
+                in_comment = true;
+
+                ++mData;
+
+                while ((mData + 1 < mDataEnd) && (ch = *(++mData))) {
+                    if (ch == '*' && ((mData + 1) < mDataEnd) && (*(mData + 1) == '/')) {
+                        current_token.Start = mData;
+                        break;
+                    }
+                }
+            }
+
             // If we are in a comment, skip until we hit a newline. Carriage return is eaten by our
             // below by the IsWhitespace check.
             if (in_comment) {

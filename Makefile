@@ -1,11 +1,12 @@
 CXX := cc
-CXXFLAGS := -std=c++20 -Wall -g
+CXXFLAGS := -std=c++20 -Wall -g -MMD -MP
 LINKFLAGS := -lc++
 
 BUILD_DIR := build
 
 SRC := FxScript.cpp Main.cpp
 OBJ := $(SRC:%.cpp=$(BUILD_DIR)/%.o)
+DEP := $(OBJ:.o=.d)  # dependency files
 TARGET := fxscript
 
 all: $(TARGET)
@@ -24,3 +25,6 @@ clean:
 
 run: $(TARGET)
 	./$(TARGET)
+
+# Include auto-generated dependencies
+-include $(DEP)

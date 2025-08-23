@@ -156,7 +156,7 @@ FxAstNode* FxConfigScript::TryParseKeyword(FxAstBlock* parent_block)
     FxHash hash = tk.GetHash();
 
     // action [name] ( < [arg type] [arg name] ...> ) { <statements...> }
-    constexpr FxHash kw_action = FxHashStr("action");
+    constexpr FxHash kw_action = FxHashStr("fn");
 
     // local [type] [name] <?assignment> ;
     constexpr FxHash kw_local = FxHashStr("local");

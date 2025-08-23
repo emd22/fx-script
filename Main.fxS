@@ -1,13 +1,17 @@
 
-action take_five() int
-{
-    return 5;
-}
+local int x = 5;
+local int y = 2 + x;
 
-action test_action(int x, int y)
-{
-	local int value = take_five() + 7;
-	#log("Value: ", value);
-}
 
-test_action(2, 3);
+
+
+
+
+
+
+
+// push32 5                 	# Offset: 0
+// move32 X0, 2	            	# Offset: 6
+// load32 -4, X1            	# Offset: 12
+// add32 X0, X1             	# Offset: 16
+// push32r XR               	# Offset: 20
