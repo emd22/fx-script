@@ -7,7 +7,10 @@
 
 #define FX_SCRIPT_VERSION_MAJOR 0
 #define FX_SCRIPT_VERSION_MINOR 3
-#define FX_SCRIPT_VERSION_PATCH 0
+#define FX_SCRIPT_VERSION_PATCH 1
+
+#define FX_SCRIPT_VAR_RETURN_VAL "__ReturnVal__"
+
 
 struct FxAstVarRef;
 struct FxScriptScope;
@@ -429,7 +432,7 @@ public:
     FxScriptAction* FindAction(FxHash hashed_name);
     FxScriptExternalFunc* FindExternalAction(FxHash hashed_name);
 
-    FxAstNode* TryParseKeyword();
+    FxAstNode* TryParseKeyword(FxAstBlock* parent_block);
 
     FxAstAssign* TryParseAssignment(FxTokenizer::Token* var_name);
 
@@ -440,12 +443,20 @@ public:
     FxAstNode* ParseRhs();
     FxAstActionCall* ParseActionCall();
 
+    /**
+     * @brief Declares a variable for internal uses as if it was declared in the script.
+     * @param name Name of the variable
+     * @param type The name of the type
+     * @param scope The scope the variable will be declared in
+     * @return
+     */
+    FxAstVarDecl* InternalVarDeclare(FxTokenizer::Token* name_token, FxTokenizer::Token* type_token, FxScriptScope* scope = nullptr);
     FxAstVarDecl* ParseVarDeclare(FxScriptScope* scope = nullptr);
 
     FxAstBlock* ParseBlock();
-    FxAstNode* ParseStatement();
 
-    FxAstNode* ParseStatementAsCommand();
+    FxAstNode* ParseStatement(FxAstBlock* parent_block);
+    FxAstNode* ParseStatementAsCommand(FxAstBlock* parent_block);
 
     FxAstBlock* Parse();
 
@@ -489,6 +500,9 @@ private:
 
     void DefineDefaultExternalFunctions();
 
+    Token* CreateTokenFromString(FxTokenizer::TokenType type, const char* text);
+    void CreateInternalVariableTokens();
+
 private:
     FxMPPagedArray<FxScriptScope> mScopes;
     FxScriptScope* mCurrentScope;
@@ -505,6 +519,10 @@ private:
     char* mFileData;
     FxMPPagedArray<Token> mTokens = {};
     uint32 mTokenIndex = 0;
+
+    // Name tokens for internal variables
+    Token* mTokenReturnVar = nullptr;
+
 };
 
 //////////////////////////////////
@@ -758,7 +776,7 @@ private:
 
     FxScriptRegister EmitBinop(FxAstBinop* binop, FxScriptBytecodeVarHandle* handle);
 
-    FxScriptRegister EmitRhs(FxAstNode* rhs, RhsMode mode, FxScriptBytecodeVarHandle* handle = nullptr);
+    FxScriptRegister EmitRhs(FxAstNode* rhs, RhsMode mode, FxScriptBytecodeVarHandle* handle);
 
     FxScriptRegister EmitLiteralInt(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle);
     FxScriptRegister EmitLiteralString(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle);
@@ -961,4 +979,51 @@ private:
 
     FxMPPagedArray<FxScriptScope> mScopes;
     FxScriptScope* mCurrentScope = nullptr;
+};
+
+
+/////////////////////////////////////
+// Bytecode to x86 Transpiler
+/////////////////////////////////////
+
+
+class FxScriptTranspilerX86
+{
+public:
+    FxScriptTranspilerX86(FxMPPagedArray<uint8>& bytecode)
+    {
+        mBytecode = bytecode;
+        mBytecode.DoNotDestroy = true;
+    }
+
+    void Print();
+    void PrintOp();
+
+
+private:
+    uint16 Read16();
+    uint32 Read32();
+
+    void DoPush(char* s, uint8 op_base, uint8 op_spec);
+    void DoPop(char* s, uint8 op_base, uint8 op_spec);
+    void DoLoad(char* s, uint8 op_base, uint8 op_spec);
+    void DoArith(char* s, uint8 op_base, uint8 op_spec);
+    void DoSave(char* s, uint8 op_base, uint8 op_spec);
+    void DoJump(char* s, uint8 op_base, uint8 op_spec);
+    void DoData(char* s, uint8 op_base, uint8 op_spec);
+    void DoType(char* s, uint8 op_base, uint8 op_spec);
+    void DoMove(char* s, uint8 op_base, uint8 op_spec);
+
+
+    void StrOut(const char* fmt, ...);
+
+private:
+    uint32 mBytecodeIndex = 0;
+
+    uint32 mSizePushedInAction = 0;
+    bool mIsInAction = false;
+
+    int mTextIndent = 0;
+
+    FxMPPagedArray<uint8> mBytecode;
 };

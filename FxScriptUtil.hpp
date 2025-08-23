@@ -7,10 +7,9 @@
 
 // #include <exception>
 
-/////////////////////////////
-// Memory Macros
-/////////////////////////////
+#include <type_traits>
 
+// #define FX_SCRIPT_USE_MEMPOOL 1
 
 #ifdef FX_SCRIPT_USE_MEMPOOL
 
@@ -31,6 +30,7 @@
 
 #endif
 
+
 template <typename T>
 T* FxScriptAllocMemory(size_t size)
 {
@@ -45,9 +45,9 @@ T* FxScriptAllocMemory(size_t size)
 template <typename T>
 void FxScriptFreeMemory(T* ptr)
 {
-    // if constexpr (std::is_destructible_v<T>) {
-    //     ptr->~T();
-    // }
+    if constexpr (std::is_destructible_v<T>) {
+        ptr->~T();
+    }
 
     free(ptr);
 }
