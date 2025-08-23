@@ -1,9 +1,9 @@
 #pragma once
 
-#include <vector>
-
 #include "FxMPPagedArray.hpp"
 #include "FxTokenizer.hpp"
+
+#include <vector>
 
 #define FX_SCRIPT_VERSION_MAJOR 0
 #define FX_SCRIPT_VERSION_MINOR 3
@@ -46,13 +46,11 @@ struct FxScriptValue
     {
     }
 
-    explicit FxScriptValue(ValueType type, int value)
-        : Type(type), ValueInt(value)
+    explicit FxScriptValue(ValueType type, int value) : Type(type), ValueInt(value)
     {
     }
 
-    explicit FxScriptValue(ValueType type, float value)
-        : Type(type), ValueFloat(value)
+    explicit FxScriptValue(ValueType type, float value) : Type(type), ValueFloat(value)
     {
     }
 
@@ -107,7 +105,7 @@ struct FxScriptValue
 enum FxAstType
 {
     FX_AST_LITERAL,
-    //FX_AST_NAME,
+    // FX_AST_NAME,
 
     FX_AST_BINOP,
     FX_AST_UNARYOP,
@@ -141,7 +139,7 @@ struct FxAstLiteral : public FxAstNode
         this->NodeType = FX_AST_LITERAL;
     }
 
-    //FxTokenizer::Token* Token = nullptr;
+    // FxTokenizer::Token* Token = nullptr;
     FxScriptValue Value;
 };
 
@@ -186,7 +184,7 @@ struct FxAstAssign : public FxAstNode
     }
 
     FxAstVarRef* Var = nullptr;
-    //FxScriptValue Value;
+    // FxScriptValue Value;
     FxAstNode* Rhs = nullptr;
 };
 
@@ -249,7 +247,7 @@ struct FxAstActionCall : public FxAstNode
 
     FxScriptAction* Action = nullptr;
     FxHash HashedName = 0;
-    std::vector<FxAstNode*> Params{}; // FxAstLiteral or FxAstVarRef
+    std::vector<FxAstNode*> Params {}; // FxAstLiteral or FxAstVarRef
 };
 
 struct FxAstReturn : public FxAstNode
@@ -303,8 +301,7 @@ struct FxScriptVar : public FxScriptLabelledData
     {
     }
 
-    FxScriptVar(FxTokenizer::Token* type, FxTokenizer::Token* name, FxScriptScope* scope, bool is_external = false)
-        : Type(type)
+    FxScriptVar(FxTokenizer::Token* type, FxTokenizer::Token* name, FxScriptScope* scope, bool is_external = false) : Type(type)
     {
         this->HashedName = name->GetHash();
         this->Name = name;
@@ -321,7 +318,7 @@ struct FxScriptVar : public FxScriptLabelledData
         IsExternal = other.IsExternal;
     }
 
-    FxScriptVar& operator = (FxScriptVar&& other) noexcept
+    FxScriptVar& operator=(FxScriptVar&& other) noexcept
     {
         HashedName = other.HashedName;
         Type = other.Type;
@@ -353,13 +350,12 @@ struct FxScriptVar : public FxScriptLabelledData
     }
 };
 
-class FxScriptInterpreter;
 class FxScriptVM;
 
 
 struct FxScriptExternalFunc
 {
-    //using FuncType = void (*)(FxScriptInterpreter& interpreter, std::vector<FxScriptValue>& params, FxScriptValue* return_value);
+    // using FuncType = void (*)(FxScriptInterpreter& interpreter, std::vector<FxScriptValue>& params, FxScriptValue* return_value);
 
     using FuncType = void (*)(FxScriptVM* vm, std::vector<FxScriptValue>& params, FxScriptValue* return_value);
 
@@ -399,7 +395,8 @@ struct FxScriptScope
         return FindInScope<FxScriptAction>(hashed_name, Actions);
     }
 
-    template <typename T> requires std::is_base_of_v<FxScriptLabelledData, T>
+    template <typename T>
+        requires std::is_base_of_v<FxScriptLabelledData, T>
     T* FindInScope(FxHash hashed_name, const FxMPPagedArray<T>& buffer)
     {
         for (T& var : buffer) {
@@ -412,7 +409,7 @@ struct FxScriptScope
     }
 };
 
-class FxScriptInterpreter;
+// class FxScriptInterpreter;
 
 class FxConfigScript
 {
@@ -471,17 +468,19 @@ public:
      * @param command The command to execute on the script.
      * @return If the command has been executed
      */
-    bool ExecuteUserCommand(const char* command, FxScriptInterpreter& interpreter);
+    // bool ExecuteUserCommand(const char* command, FxScriptInterpreter& interpreter);
 
     Token& GetToken(int offset = 0);
     Token& EatToken(TT token_type);
 
-    void RegisterExternalFunc(FxHash func_name, std::vector<FxScriptValue::ValueType> param_types, FxScriptExternalFunc::FuncType func, bool is_variadic);
+    void RegisterExternalFunc(FxHash func_name, std::vector<FxScriptValue::ValueType> param_types, FxScriptExternalFunc::FuncType func,
+                              bool is_variadic);
 
     void DefineExternalVar(const char* type, const char* name, const FxScriptValue& value);
 
 private:
-    template <typename T> requires std::is_base_of_v<FxScriptLabelledData, T>
+    template <typename T>
+        requires std::is_base_of_v<FxScriptLabelledData, T>
     T* FindLabelledData(FxHash hashed_name, FxMPPagedArray<T>& buffer)
     {
         FxScriptScope* scope = mCurrentScope;
@@ -522,7 +521,6 @@ private:
 
     // Name tokens for internal variables
     Token* mTokenReturnVar = nullptr;
-
 };
 
 //////////////////////////////////
@@ -533,7 +531,7 @@ class FxAstPrinter
 {
 public:
     FxAstPrinter(FxAstBlock* root_block)
-        //: mRootBlock(root_block)
+    //: mRootBlock(root_block)
     {
     }
 
@@ -624,11 +622,11 @@ public:
         else {
             puts("[UNKNOWN]");
         }
-        //else if (node->NodeType == FX_AST_)
+        // else if (node->NodeType == FX_AST_)
     }
 
 public:
-    //FxAstBlock* mRootBlock = nullptr;
+    // FxAstBlock* mRootBlock = nullptr;
 };
 
 /////////////////////////////////////////////
@@ -672,12 +670,12 @@ enum FxScriptRegisterFlag : uint16
     FX_REGFLAG_XR = 0x20,
 };
 
-inline FxScriptRegisterFlag operator | (FxScriptRegisterFlag a, FxScriptRegisterFlag b)
+inline FxScriptRegisterFlag operator|(FxScriptRegisterFlag a, FxScriptRegisterFlag b)
 {
     return static_cast<FxScriptRegisterFlag>(static_cast<uint16>(a) | static_cast<uint16>(b));
 }
 
-inline FxScriptRegisterFlag operator & (FxScriptRegisterFlag a, FxScriptRegisterFlag b)
+inline FxScriptRegisterFlag operator&(FxScriptRegisterFlag a, FxScriptRegisterFlag b)
 {
     return static_cast<FxScriptRegisterFlag>(static_cast<uint16>(a) & static_cast<uint16>(b));
 }
@@ -723,9 +721,10 @@ public:
 
     static const char* GetRegisterName(FxScriptRegister reg);
 
-    FxMPPagedArray<uint8> mBytecode{};
+    FxMPPagedArray<uint8> mBytecode {};
 
-    enum VarDeclareMode {
+    enum VarDeclareMode
+    {
         DECLARE_DEFAULT,
         DECLARE_NO_EMIT,
     };
@@ -797,11 +796,10 @@ private:
     void MarkRegisterFree(FxScriptRegister reg);
 
 public:
-
     FxMPPagedArray<FxScriptBytecodeVarHandle> VarHandles;
     std::vector<FxScriptBytecodeActionHandle> ActionHandles;
-private:
 
+private:
     FxScriptRegisterFlag mRegsInUse = FX_REGFLAG_NONE;
 
     int64 mStackOffset = 0;
@@ -863,7 +861,7 @@ public:
         mPushedTypes.Create(64);
 
         Stack = FX_SCRIPT_ALLOC_MEMORY(uint8, 1024);
-        //mStackOffset = 0;
+        // mStackOffset = 0;
         Registers[FX_REG_SP] = 0;
         memset(Registers, 0, sizeof(Registers));
 
@@ -931,7 +929,7 @@ private:
 ////////////////////////////////////////////////
 // Script Interpreter
 ////////////////////////////////////////////////
-
+#if 0
 class FxScriptInterpreter
 {
 public:
@@ -981,7 +979,7 @@ private:
     FxScriptScope* mCurrentScope = nullptr;
 };
 
-
+#endif
 /////////////////////////////////////
 // Bytecode to x86 Transpiler
 /////////////////////////////////////
@@ -1025,5 +1023,156 @@ private:
 
     int mTextIndent = 0;
 
+    FxMPPagedArray<uint8> mBytecode;
+};
+
+
+////////////////////////////////////////////
+// IR Emitter
+////////////////////////////////////////////
+
+
+class FxScriptIREmitter
+{
+public:
+    FxScriptIREmitter() = default;
+
+    void BeginEmitting(FxAstNode* node);
+    void Emit(FxAstNode* node);
+
+    enum RhsMode
+    {
+        RHS_FETCH_TO_REGISTER,
+
+        /**
+         * @brief Pushes the value to the stack, assuming that the value does not exist yet.
+         */
+        RHS_DEFINE_IN_MEMORY,
+
+        RHS_ASSIGN_TO_HANDLE,
+    };
+
+    static FxScriptRegister RegFlagToReg(FxScriptRegisterFlag reg_flag);
+    static FxScriptRegisterFlag RegToRegFlag(FxScriptRegister reg);
+
+    static const char* GetRegisterName(FxScriptRegister reg);
+
+    FxMPPagedArray<uint8> mBytecode {};
+
+    enum VarDeclareMode
+    {
+        DECLARE_DEFAULT,
+        DECLARE_NO_EMIT,
+    };
+
+
+private:
+    void EmitBlock(FxAstBlock* block);
+    void EmitAction(FxAstActionDecl* action);
+    void DoActionCall(FxAstActionCall* call);
+    FxScriptBytecodeVarHandle* DoVarDeclare(FxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
+    void EmitAssign(FxAstAssign* assign);
+    FxScriptBytecodeVarHandle* DefineAndFetchParam(FxAstNode* param_decl_node);
+    FxScriptBytecodeVarHandle* DefineReturnVar(FxAstVarDecl* decl);
+
+    FxScriptRegister EmitVarFetch(FxAstVarRef* ref, RhsMode mode);
+
+    void DoLoad(uint32 stack_offset, FxScriptRegister output_reg, bool force_absolute = false);
+    void DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute = false);
+    void DoSaveReg32(uint32 stack_offset, FxScriptRegister reg, bool force_absolute = false);
+
+    void EmitPush32(uint32 value);
+    void EmitPush32r(FxScriptRegister reg);
+
+    void EmitPop32(FxScriptRegister output_reg);
+
+    void EmitLoad32(int offset, FxScriptRegister output_reg);
+    void EmitLoadAbsolute32(uint32 position, FxScriptRegister output_reg);
+
+    void EmitSave32(int16 offset, uint32 value);
+    void EmitSaveReg32(int16 offset, FxScriptRegister reg);
+
+    void EmitSaveAbsolute32(uint32 offset, uint32 value);
+    void EmitSaveAbsoluteReg32(uint32 offset, FxScriptRegister reg);
+
+    void EmitJumpRelative(uint16 offset);
+    void EmitJumpAbsolute(uint32 position);
+    void EmitJumpAbsoluteReg32(FxScriptRegister reg);
+    void EmitJumpCallAbsolute(uint32 position);
+    void EmitJumpReturnToCaller();
+    void EmitJumpCallExternal(FxHash hashed_name);
+
+    void EmitMoveInt32(FxScriptRegister reg, uint32 value);
+
+    void EmitParamsStart();
+    void EmitType(FxScriptValue::ValueType type);
+
+    uint32 EmitDataString(char* str, uint16 length);
+
+    FxScriptRegister EmitBinop(FxAstBinop* binop, FxScriptBytecodeVarHandle* handle);
+
+    FxScriptRegister EmitRhs(FxAstNode* rhs, RhsMode mode, FxScriptBytecodeVarHandle* handle);
+
+    FxScriptRegister EmitLiteralInt(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle);
+    FxScriptRegister EmitLiteralString(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle);
+
+
+    void WriteOp(uint8 base_op, uint8 spec_op);
+    void Write16(uint16 value);
+    void Write32(uint32 value);
+
+    FxScriptRegister FindFreeRegister();
+
+    FxScriptBytecodeVarHandle* FindVarHandle(FxHash hashed_name);
+    FxScriptBytecodeActionHandle* FindActionHandle(FxHash hashed_name);
+
+    void PrintBytecode();
+
+    void MarkRegisterUsed(FxScriptRegister reg);
+    void MarkRegisterFree(FxScriptRegister reg);
+
+public:
+    FxMPPagedArray<FxScriptBytecodeVarHandle> VarHandles;
+    std::vector<FxScriptBytecodeActionHandle> ActionHandles;
+
+private:
+    FxScriptRegisterFlag mRegsInUse = FX_REGFLAG_NONE;
+
+    int64 mStackOffset = 0;
+    uint32 mStackSize = 0;
+
+    uint16 mScopeIndex = 0;
+};
+
+
+class FxScriptIRPrinter
+{
+public:
+    FxScriptIRPrinter(FxMPPagedArray<uint8>& bytecode)
+    {
+        mBytecode = bytecode;
+        mBytecode.DoNotDestroy = true;
+    }
+
+    void Print();
+    void PrintOp();
+
+
+private:
+    uint16 Read16();
+    uint32 Read32();
+
+    void DoPush(char* s, uint8 op_base, uint8 op_spec);
+    void DoPop(char* s, uint8 op_base, uint8 op_spec);
+    void DoLoad(char* s, uint8 op_base, uint8 op_spec);
+    void DoArith(char* s, uint8 op_base, uint8 op_spec);
+    void DoSave(char* s, uint8 op_base, uint8 op_spec);
+    void DoJump(char* s, uint8 op_base, uint8 op_spec);
+    void DoData(char* s, uint8 op_base, uint8 op_spec);
+    void DoType(char* s, uint8 op_base, uint8 op_spec);
+    void DoMove(char* s, uint8 op_base, uint8 op_spec);
+
+private:
+    uint32 mBytecodeIndex = 0;
     FxMPPagedArray<uint8> mBytecode;
 };
