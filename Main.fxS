@@ -10,4 +10,10 @@ action test_action(int x, int y)
 	#log("Value: ", value);
 }
 
+struct TestStruct
+{
+	int a;
+	int b;
+};
+
 test_action(2, 3);

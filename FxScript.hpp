@@ -118,6 +118,9 @@ enum FxAstType
     FX_AST_VARDECL,
     FX_AST_ASSIGN,
 
+    // Type defs
+    FX_AST_STRUCTDECL,
+
     // Actions
     FX_AST_ACTIONDECL,
     FX_AST_ACTIONCALL,
@@ -203,6 +206,16 @@ struct FxAstVarDecl : public FxAstNode
 
     /// Ignore the scope that the variable is declared in, force it to be global.
     bool DefineAsGlobal = false;
+};
+
+struct FxAstStructDecl : public FxAstNode
+{
+    FxAstStructDecl()
+    {
+        this->NodeType = FX_AST_STRUCTDECL;
+    }
+    FxTokenizer::Token* Name = nullptr;
+    std::vector<FxAstVarDecl*> Members;
 };
 
 struct FxAstDocComment : public FxAstNode
@@ -374,6 +387,7 @@ struct FxScriptScope
 {
     FxMPPagedArray<FxScriptVar> Vars;
     FxMPPagedArray<FxScriptAction> Actions;
+    FxMPPagedArray<FxAstStructDecl> Structs;
 
     FxScriptScope* Parent = nullptr;
 

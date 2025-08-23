@@ -164,6 +164,9 @@ FxAstNode* FxConfigScript::TryParseKeyword(FxAstBlock* parent_block)
     // global [type] [name] <?assignment> ;
     constexpr FxHash kw_global = FxHashStr("global");
 
+    // struct [name] { <members...> }
+    constexpr FxHash kw_struct = FxHashStr("struct");
+
     // return ;
     constexpr FxHash kw_return = FxHashStr("return");
 
@@ -182,6 +185,27 @@ FxAstNode* FxConfigScript::TryParseKeyword(FxAstBlock* parent_block)
     if (hash == kw_global) {
         EatToken(TT::Identifier);
         return ParseVarDeclare(&mScopes[0]);
+    }
+    if (hash == kw_struct) {
+        EatToken(TT::Identifier);
+        Token& name = EatToken(TT::Identifier);
+        FxAstStructDecl* struct_decl = FX_SCRIPT_ALLOC_NODE(FxAstStructDecl);
+        struct_decl->Name = &name;
+        
+        EatToken(TT::LBrace);
+        
+        while (GetToken().Type != TT::RBrace && mTokenIndex < mTokens.Size()) {
+            FxAstVarDecl* member = ParseVarDeclare();
+
+            // Expect a semicolon after each member declaration
+            EatToken(TT::Semicolon);
+
+            struct_decl->Members.push_back(member);
+        }
+
+        EatToken(TT::RBrace);
+
+        return struct_decl;
     }
     if (hash == kw_return) {
         EatToken(TT::Identifier);
@@ -1551,6 +1575,22 @@ void FxScriptInterpreter::Visit(FxAstNode* node)
         scope->Vars.Insert(var);
 
         Visit(vardecl->Assignment);
+    }
+    else if (node->NodeType == FX_AST_STRUCTDECL) {
+        FxAstStructDecl* structdecl = reinterpret_cast<FxAstStructDecl*>(node);
+        
+        // Visit all member variable declarations to ensure they are valid
+        for (FxAstNode* member_node : structdecl->Members) {
+            if (member_node->NodeType != FX_AST_VARDECL) {
+                continue;
+            }
+
+            FxAstVarDecl* member_decl = reinterpret_cast<FxAstVarDecl*>(member_node);
+            Visit(member_decl);
+        }
+
+        FxScriptScope* scope = mCurrentScope;
+        scope->Structs.Insert(*structdecl);
     }
     else if (node->NodeType == FX_AST_ASSIGN) {
         FxAstAssign* assign = reinterpret_cast<FxAstAssign*>(node);
