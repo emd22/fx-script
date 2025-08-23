@@ -708,7 +708,7 @@ void FxConfigScript::DefineExternalVar(const char* type, const char* name, const
         const uint32 type_len = strlen(type);
 
         char* type_buffer = FX_SCRIPT_ALLOC_MEMORY(char, (type_len + 1));
-        strcpy(type_buffer, type);
+        std::strcpy(type_buffer, type);
 
         type_token->Start = type_buffer;
         type_token->Type = TT::Identifier;
@@ -720,7 +720,7 @@ void FxConfigScript::DefineExternalVar(const char* type, const char* name, const
         const uint32 name_len = strlen(name);
 
         char* name_buffer = FX_SCRIPT_ALLOC_MEMORY(char, (name_len + 1));
-        strcpy(name_buffer, name);
+        std::strcpy(name_buffer, name);
 
         name_token->Start = name_buffer;
         name_token->Type = TT::Identifier;
@@ -1598,7 +1598,7 @@ void FxScriptInterpreter::DefineExternalVar(const char* type, const char* name, 
     {
         const uint32 type_len = strlen(type);
         char* type_buffer = FX_SCRIPT_ALLOC_MEMORY(char, (type_len + 1));
-        strcpy(type_buffer, type);
+        std::strcpy(type_buffer, type);
         //type_buffer[type_len + 1] = 0;
 
 
@@ -1612,7 +1612,7 @@ void FxScriptInterpreter::DefineExternalVar(const char* type, const char* name, 
         const uint32 name_len = strlen(name);
 
         char* name_buffer = FX_SCRIPT_ALLOC_MEMORY(char, (name_len + 1));
-        strcpy(name_buffer, name);
+        std::strcpy(name_buffer, name);
 
         name_token->Start = name_buffer;
         name_token->Type = TT::Identifier;

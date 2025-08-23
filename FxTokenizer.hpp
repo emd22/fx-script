@@ -140,7 +140,7 @@ public:
                 return nullptr;
             }
 
-            strncpy(str, Start, Length);
+            std::strncpy(str, Start, Length);
             str[Length] = 0;
 
             return str;
@@ -188,7 +188,8 @@ public:
         int64 ToInt() const
         {
             char buffer[32];
-            strncpy(buffer, Start, Length);
+            
+            std::strncpy(buffer, Start, Length);
             buffer[Length] = 0;
 
             char* end = nullptr;
@@ -198,7 +199,7 @@ public:
         float32 ToFloat() const
         {
             char buffer[32];
-            strncpy(buffer, Start, Length);
+            std::strncpy(buffer, Start, Length);
             buffer[Length] = 0;
 
             char* end = nullptr;

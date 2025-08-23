@@ -3,6 +3,7 @@
 #include "FxScriptUtil.hpp"
 
 #include <cstdlib>
+#include <cassert>
 
 template <typename ElementType>
 class FxMPPagedArray

@@ -30,7 +30,6 @@
 
 #endif
 
-
 template <typename T>
 T* FxScriptAllocMemory(size_t size)
 {
@@ -83,7 +82,7 @@ public:
     static FILE* FileOpen(const char* path, const char* mode)
     {
         // TODO: readd fopen_s for Windows;
-        return fopen(path, mode);
+        return std::fopen(path, mode);
     }
 };
 
@@ -118,7 +117,11 @@ inline constexpr FxHash FxHashStr(const char *str)
 #include <exception>
 #include <iostream>
 
+#ifdef _MSC_VER
+#define FX_BREAKPOINT __debugbreak()
+#else
 #define FX_BREAKPOINT __builtin_trap()
+#endif
 
 template <typename T, typename... Types>
 void FxPanic(const char* const module, const char* fmt, T first, Types... items)

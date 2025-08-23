@@ -46,5 +46,7 @@ int main()
 	// 	script.ExecuteUserCommand(command.c_str(), interpreter);
 	// }
 
+	system("pause");
+
 	return 0;
 }
