@@ -1,6 +1,6 @@
 #pragma once
 
-#include "FxScriptUtil.hpp"
+#include "FoxScriptUtil.hpp"
 
 
 /*
@@ -96,12 +96,17 @@ enum IrBase : uint8
     IrBase_Data,
     IrBase_Type,
     IrBase_Move,
+    IrBase_Marker,
+
+    IrBase_Variable,
 };
 
 enum IrSpecPush : uint8
 {
     IrSpecPush_Int32 = 1, // PUSH32  [imm]
     IrSpecPush_Reg32,     // PUSH32r [%r32]
+
+    IrSpecPush_StackAlloc,
 };
 
 enum IrSpecPop : uint8
@@ -143,7 +148,6 @@ enum IrSpecJump : uint8
 enum IrSpecData : uint8
 {
     IrSpecData_String = 1,
-    IrSpecData_ParamsStart,
 };
 
 enum IrSpecType : uint8
@@ -155,4 +159,21 @@ enum IrSpecType : uint8
 enum IrSpecMove : uint8
 {
     IrSpecMove_Int32 = 1,
+};
+
+enum IrSpecMarker : uint8
+{
+    // Function frame ops
+    IrSpecMarker_FrameBegin = 1,
+    IrSpecMarker_FrameEnd,
+
+    IrSpecMarker_ParamsBegin,
+
+};
+
+enum IrSpecVariable : uint8
+{
+    IrSpecVariable_Set_Int32 = 1,
+    IrSpecVariable_Set_Reg32,
+    IrSpecVariable_Get_Int32,
 };

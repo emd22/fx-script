@@ -1,8 +1,7 @@
 #pragma once
 
-#include <cstdint>
 #include <cstddef>
-
+#include <cstdint>
 #include <type_traits>
 
 // #include <exception>
@@ -13,25 +12,25 @@
 
 #ifdef FX_SCRIPT_USE_MEMPOOL
 
-#include "FxMemPool.hpp"
+#include "FoxMemPool.hpp"
 
-#define FX_SCRIPT_ALLOC_MEMORY(ptrtype_, size_) FxMemPool::Alloc<ptrtype_>(size_)
-#define FX_SCRIPT_ALLOC_NODE(nodetype_) FxMemPool::Alloc<nodetype_>(sizeof(nodetype_))
-#define FX_SCRIPT_FREE(ptrtype_, ptr_) FxMemPool::Free<ptrtype_>(ptr_)
+#define FX_SCRIPT_ALLOC_MEMORY(ptrtype_, size_) FoxMemPool::Alloc<ptrtype_>(size_)
+#define FX_SCRIPT_ALLOC_NODE(nodetype_) FoxMemPool::Alloc<nodetype_>(sizeof(nodetype_))
+#define FX_SCRIPT_FREE(ptrtype_, ptr_) FoxMemPool::Free<ptrtype_>(ptr_)
 
 #else
 
 // #define FX_SCRIPT_ALLOC_MEMORY(ptrtype_, size_) new ptrtype_[size_]
-#define FX_SCRIPT_ALLOC_MEMORY(ptrtype_, size_) FxScriptAllocMemory<ptrtype_>(size_)
-#define FX_SCRIPT_ALLOC_NODE(nodetype_) FxScriptAllocMemory<nodetype_>(sizeof(nodetype_))
-#define FX_SCRIPT_FREE(ptrtype_, ptr_) FxScriptFreeMemory<ptrtype_>(ptr_)
+#define FX_SCRIPT_ALLOC_MEMORY(ptrtype_, size_) FoxAllocMemory<ptrtype_>(size_)
+#define FX_SCRIPT_ALLOC_NODE(nodetype_) FoxAllocMemory<nodetype_>(sizeof(nodetype_))
+#define FX_SCRIPT_FREE(ptrtype_, ptr_) FoxFreeMemory<ptrtype_>(ptr_)
 
 #include <cstdlib>
 
 #endif
 
 template <typename T>
-T* FxScriptAllocMemory(size_t size)
+T* FoxAllocMemory(size_t size)
 {
     T* ptr = reinterpret_cast<T*>(malloc(size));
     if constexpr (std::is_constructible_v<T>) {
@@ -42,7 +41,7 @@ T* FxScriptAllocMemory(size_t size)
 }
 
 template <typename T>
-void FxScriptFreeMemory(T* ptr)
+void FoxFreeMemory(T* ptr)
 {
     if constexpr (std::is_destructible_v<T>) {
         ptr->~T();
@@ -76,7 +75,7 @@ typedef double float64;
 /////////////////////////////
 
 
-class FxUtil
+class FoxUtil
 {
 public:
     static FILE* FileOpen(const char* path, const char* mode)
@@ -93,14 +92,14 @@ public:
 #define FX_HASH_FNV1A_SEED 0x811C9DC5
 #define FX_HASH_FNV1A_PRIME 0x01000193
 
-using FxHash = uint32;
+using FoxHash = uint32;
 
 /**
  * Hashes a string at compile time using FNV-1a.
  *
  * Source to algorithm: http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param
  */
-inline constexpr FxHash FxHashStr(const char *str)
+inline constexpr FoxHash FoxHashStr(const char* str)
 {
     uint32 hash = FX_HASH_FNV1A_SEED;
 
@@ -124,7 +123,7 @@ inline constexpr FxHash FxHashStr(const char *str)
 #endif
 
 template <typename T, typename... Types>
-void FxPanic(const char* const module, const char* fmt, T first, Types... items)
+void FoxPanic(const char* const module, const char* fmt, T first, Types... items)
 {
     // printf(fmt, items...);
     ((std::cout << items), ...);
@@ -138,7 +137,7 @@ void FxPanic(const char* const module, const char* fmt, T first, Types... items)
  *
  * Source to algorithm: http://www.isthe.com/chongo/tech/comp/fnv/index.html#FNV-param
  */
-inline constexpr FxHash FxHashStr(const char *str, uint32 length)
+inline constexpr FoxHash FoxHashStr(const char* str, uint32 length)
 {
     uint32 hash = FX_HASH_FNV1A_SEED;
 

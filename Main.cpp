@@ -1,4 +1,4 @@
-#include "FxScript.hpp"
+#include "FoxScript.hpp"
 
 #include <assert.h>
 
@@ -7,12 +7,12 @@
 
 int main()
 {
-    FxConfigScript script;
-    script.LoadFile("Main.fxS");
+    FoxConfigScript script;
+    script.LoadFile("Main.fox");
 
-    script.DefineExternalVar("playerid", "emd22", FxScriptValue(FxScriptValue::INT, 1020));
+    script.DefineExternalVar("playerid", "emd22", FoxValue(FoxValue::INT, 1020));
 
-    FxScriptVM vm;
+    FoxVM vm;
 
     script.Execute(vm);
 

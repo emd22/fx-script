@@ -5,11 +5,6 @@ local int y = 2 + x;
 
 
 
-
-
-
-
-
 // push32 5                 	# Offset: 0
 // move32 X0, 2	            	# Offset: 6
 // load32 -4, X1            	# Offset: 12

@@ -1,6 +1,6 @@
-#include "FxScript.hpp"
+#include "FoxScript.hpp"
 
-#include "FxScriptUtil.hpp"
+#include "FoxScriptUtil.hpp"
 
 #include <stdio.h>
 
@@ -12,14 +12,14 @@
 #define FX_SCRIPT_SCOPE_GLOBAL_ACTIONS_START_SIZE 32
 #define FX_SCRIPT_SCOPE_LOCAL_ACTIONS_START_SIZE 32
 
-using Token = FxTokenizer::Token;
-using TT = FxTokenizer::TokenType;
+using Token = FoxTokenizer::Token;
+using TT = FoxTokenizer::TokenType;
 
-FxScriptValue FxScriptValue::None {};
+FoxValue FoxValue::None {};
 
-void FxConfigScript::LoadFile(const char* path)
+void FoxConfigScript::LoadFile(const char* path)
 {
-    FILE* fp = FxUtil::FileOpen(path, "rb");
+    FILE* fp = FoxUtil::FileOpen(path, "rb");
     if (fp == nullptr) {
         printf("[ERROR] Could not open config file at '%s'\n", path);
         return;
@@ -36,7 +36,7 @@ void FxConfigScript::LoadFile(const char* path)
         printf("[WARNING] Error reading all data from config file at '%s' (read=%zu, size=%zu)\n", path, read_size, file_size);
     }
 
-    FxTokenizer tokenizer(mFileData, read_size);
+    FoxTokenizer tokenizer(mFileData, read_size);
     tokenizer.Tokenize();
 
 
@@ -51,12 +51,12 @@ void FxConfigScript::LoadFile(const char* path)
     mScopes.Create(8);
     mCurrentScope = mScopes.Insert();
     mCurrentScope->Vars.Create(FX_SCRIPT_SCOPE_GLOBAL_VARS_START_SIZE);
-    mCurrentScope->Actions.Create(FX_SCRIPT_SCOPE_GLOBAL_ACTIONS_START_SIZE);
+    mCurrentScope->Functions.Create(FX_SCRIPT_SCOPE_GLOBAL_ACTIONS_START_SIZE);
 
     CreateInternalVariableTokens();
 }
 
-Token& FxConfigScript::GetToken(int offset)
+Token& FoxConfigScript::GetToken(int offset)
 {
     const uint32 idx = mTokenIndex + offset;
     if (idx < 0 || idx >= mTokens.Size()) {
@@ -66,19 +66,19 @@ Token& FxConfigScript::GetToken(int offset)
     return mTokens[idx];
 }
 
-Token& FxConfigScript::EatToken(TT token_type)
+Token& FoxConfigScript::EatToken(TT token_type)
 {
     Token& token = GetToken();
     if (token.Type != token_type) {
-        printf("[ERROR] %u:%u: Unexpected token type %s when expecting %s!\n", token.FileLine, token.FileColumn, FxTokenizer::GetTypeName(token.Type),
-               FxTokenizer::GetTypeName(token_type));
+        printf("[ERROR] %u:%u: Unexpected token type %s when expecting %s!\n", token.FileLine, token.FileColumn,
+               FoxTokenizer::GetTypeName(token.Type), FoxTokenizer::GetTypeName(token_type));
         mHasErrors = true;
     }
     ++mTokenIndex;
     return token;
 }
 
-Token* FxConfigScript::CreateTokenFromString(FxTokenizer::TokenType type, const char* text)
+Token* FoxConfigScript::CreateTokenFromString(FoxTokenizer::TokenType type, const char* text)
 {
     const uint32 name_len = strlen(text);
 
@@ -95,12 +95,12 @@ Token* FxConfigScript::CreateTokenFromString(FxTokenizer::TokenType type, const 
     return token;
 }
 
-void FxConfigScript::CreateInternalVariableTokens()
+void FoxConfigScript::CreateInternalVariableTokens()
 {
     mTokenReturnVar = CreateTokenFromString(TT::Identifier, FX_SCRIPT_VAR_RETURN_VAL);
 }
 
-void PrintDocCommentExample(FxTokenizer::Token* comment, int example_tag_length, bool is_command_mode)
+void PrintDocCommentExample(FoxTokenizer::Token* comment, int example_tag_length, bool is_command_mode)
 {
     char* start = comment->Start + example_tag_length;
 
@@ -128,7 +128,7 @@ void PrintDocCommentExample(FxTokenizer::Token* comment, int example_tag_length,
     puts("");
 }
 
-void PrintDocComment(FxTokenizer::Token* comment, bool is_command_mode)
+void PrintDocComment(FoxTokenizer::Token* comment, bool is_command_mode)
 {
     const char* example_tag = "EX: ";
     const int example_tag_length = 4;
@@ -148,34 +148,34 @@ void PrintDocComment(FxTokenizer::Token* comment, bool is_command_mode)
     printf("%.*s\n", comment->Length, start);
 }
 
-FxAstNode* FxConfigScript::TryParseKeyword(FxAstBlock* parent_block)
+FoxAstNode* FoxConfigScript::TryParseKeyword(FoxAstBlock* parent_block)
 {
     if (mTokenIndex >= mTokens.Size()) {
         return nullptr;
     }
 
     Token& tk = GetToken();
-    FxHash hash = tk.GetHash();
+    FoxHash hash = tk.GetHash();
 
-    // action [name] ( < [arg type] [arg name] ...> ) { <statements...> }
-    constexpr FxHash kw_action = FxHashStr("fn");
+    // function [name] ( < [arg type] [arg name] ...> ) { <statements...> }
+    constexpr FoxHash kw_function = FoxHashStr("fn");
 
     // local [type] [name] <?assignment> ;
-    constexpr FxHash kw_local = FxHashStr("local");
+    constexpr FoxHash kw_local = FoxHashStr("local");
 
     // global [type] [name] <?assignment> ;
-    constexpr FxHash kw_global = FxHashStr("global");
+    constexpr FoxHash kw_global = FoxHashStr("global");
 
     // return ;
-    constexpr FxHash kw_return = FxHashStr("return");
+    constexpr FoxHash kw_return = FoxHashStr("return");
 
-    // help [name of action] ;
-    constexpr FxHash kw_help = FxHashStr("help");
+    // help [name of function] ;
+    constexpr FoxHash kw_help = FoxHashStr("help");
 
-    if (hash == kw_action) {
+    if (hash == kw_function) {
         EatToken(TT::Identifier);
-        // ParseActionDeclare();
-        return ParseActionDeclare();
+        // ParseFunctionDeclare();
+        return ParseFunctionDeclare();
     }
     if (hash == kw_local) {
         EatToken(TT::Identifier);
@@ -190,33 +190,33 @@ FxAstNode* FxConfigScript::TryParseKeyword(FxAstBlock* parent_block)
 
         if (GetToken().Type != TT::Semicolon) {
             // There is a value that follows, get the value
-            FxAstNode* rhs = ParseRhs();
+            FoxAstNode* rhs = ParseRhs();
 
             // Assign the return value to __ReturnVal__
 
-            FxAstVarRef* var_ref = FX_SCRIPT_ALLOC_NODE(FxAstVarRef);
+            FoxAstVarRef* var_ref = FX_SCRIPT_ALLOC_NODE(FoxAstVarRef);
             var_ref->Name = mTokenReturnVar;
 
-            FxAstAssign* assign = FX_SCRIPT_ALLOC_NODE(FxAstAssign);
+            FoxAstAssign* assign = FX_SCRIPT_ALLOC_NODE(FoxAstAssign);
             assign->Var = var_ref;
             assign->Rhs = rhs;
 
             parent_block->Statements.push_back(assign);
         }
 
-        FxAstReturn* ret = FX_SCRIPT_ALLOC_NODE(FxAstReturn);
+        FoxAstReturn* ret = FX_SCRIPT_ALLOC_NODE(FoxAstReturn);
         return ret;
     }
     if (hash == kw_help) {
         EatToken(TT::Identifier);
 
-        FxTokenizer::Token& func_ref = EatToken(TT::Identifier);
+        FoxTokenizer::Token& func_ref = EatToken(TT::Identifier);
 
-        FxScriptAction* action = FindAction(func_ref.GetHash());
+        FoxFunction* function = FindFunction(func_ref.GetHash());
 
-        if (action) {
-            for (FxAstDocComment* comment : action->Declaration->DocComments) {
-                printf("[DOC] %.*s: ", action->Name->Length, action->Name->Start);
+        if (function) {
+            for (FoxAstDocComment* comment : function->Declaration->DocComments) {
+                printf("[DOC] %.*s: ", function->Name->Length, function->Name->Start);
                 PrintDocComment(comment->Comment, mInCommandMode);
             }
         }
@@ -227,21 +227,21 @@ FxAstNode* FxConfigScript::TryParseKeyword(FxAstBlock* parent_block)
     return nullptr;
 }
 
-void FxConfigScript::PushScope()
+void FoxConfigScript::PushScope()
 {
-    FxScriptScope* current = mCurrentScope;
+    FoxScope* current = mCurrentScope;
 
-    FxScriptScope* new_scope = mScopes.Insert();
+    FoxScope* new_scope = mScopes.Insert();
     new_scope->Parent = current;
     new_scope->Vars.Create(FX_SCRIPT_SCOPE_LOCAL_VARS_START_SIZE);
-    new_scope->Actions.Create(FX_SCRIPT_SCOPE_LOCAL_ACTIONS_START_SIZE);
+    new_scope->Functions.Create(FX_SCRIPT_SCOPE_LOCAL_ACTIONS_START_SIZE);
 
     mCurrentScope = new_scope;
 }
 
-void FxConfigScript::PopScope()
+void FoxConfigScript::PopScope()
 {
-    FxScriptScope* new_scope = mCurrentScope->Parent;
+    FoxScope* new_scope = mCurrentScope->Parent;
     mScopes.RemoveLast();
 
     assert(new_scope == &mScopes.GetLast());
@@ -249,27 +249,27 @@ void FxConfigScript::PopScope()
     mCurrentScope = new_scope;
 }
 
-FxAstVarDecl* FxConfigScript::InternalVarDeclare(FxTokenizer::Token* name_token, FxTokenizer::Token* type_token, FxScriptScope* scope)
+FoxAstVarDecl* FoxConfigScript::InternalVarDeclare(FoxTokenizer::Token* name_token, FoxTokenizer::Token* type_token, FoxScope* scope)
 {
     if (scope == nullptr) {
         scope = mCurrentScope;
     }
 
     // Allocate the declaration node
-    FxAstVarDecl* node = FX_SCRIPT_ALLOC_NODE(FxAstVarDecl);
+    FoxAstVarDecl* node = FX_SCRIPT_ALLOC_NODE(FoxAstVarDecl);
 
     node->Name = name_token;
     node->Type = type_token;
     node->DefineAsGlobal = (scope == &mScopes[0]);
 
     // Push the variable to the scope
-    FxScriptVar var {name_token, type_token, scope};
+    FoxVar var {name_token, type_token, scope};
     scope->Vars.Insert(var);
 
     return node;
 }
 
-FxAstVarDecl* FxConfigScript::ParseVarDeclare(FxScriptScope* scope)
+FoxAstVarDecl* FoxConfigScript::ParseVarDeclare(FoxScope* scope)
 {
     if (scope == nullptr) {
         scope = mCurrentScope;
@@ -278,13 +278,13 @@ FxAstVarDecl* FxConfigScript::ParseVarDeclare(FxScriptScope* scope)
     Token& type = EatToken(TT::Identifier);
     Token& name = EatToken(TT::Identifier);
 
-    FxAstVarDecl* node = FX_SCRIPT_ALLOC_NODE(FxAstVarDecl);
+    FoxAstVarDecl* node = FX_SCRIPT_ALLOC_NODE(FoxAstVarDecl);
 
     node->Name = &name;
     node->Type = &type;
     node->DefineAsGlobal = (scope == &mScopes[0]);
 
-    FxScriptVar var {&type, &name, scope};
+    FoxVar var {&type, &name, scope};
 
     node->Assignment = TryParseAssignment(node->Name);
     /*if (node->Assignment) {
@@ -295,12 +295,12 @@ FxAstVarDecl* FxConfigScript::ParseVarDeclare(FxScriptScope* scope)
     return node;
 }
 
-// FxScriptVar& FxConfigScript::ParseVarDeclare()
+// FoxVar& FoxConfigScript::ParseVarDeclare()
 //{
 //     Token& type = EatToken(TT::Identifier);
 //     Token& name = EatToken(TT::Identifier);
 //
-//     FxScriptVar var{ name.GetHash(), &type, &name };
+//     FoxVar var{ name.GetHash(), &type, &name };
 //
 //     TryParseAssignment(var);
 //
@@ -309,12 +309,12 @@ FxAstVarDecl* FxConfigScript::ParseVarDeclare(FxScriptScope* scope)
 //     return mCurrentScope->Vars.GetLast();
 // }
 
-FxScriptVar* FxConfigScript::FindVar(FxHash hashed_name)
+FoxVar* FoxConfigScript::FindVar(FoxHash hashed_name)
 {
-    FxScriptScope* scope = mCurrentScope;
+    FoxScope* scope = mCurrentScope;
 
     while (scope) {
-        FxScriptVar* var = scope->FindVarInScope(hashed_name);
+        FoxVar* var = scope->FindVarInScope(hashed_name);
         if (var) {
             return var;
         }
@@ -325,9 +325,9 @@ FxScriptVar* FxConfigScript::FindVar(FxHash hashed_name)
     return nullptr;
 }
 
-FxScriptExternalFunc* FxConfigScript::FindExternalAction(FxHash hashed_name)
+FoxExternalFunc* FoxConfigScript::FindExternalFunction(FoxHash hashed_name)
 {
-    for (FxScriptExternalFunc& func : mExternalFuncs) {
+    for (FoxExternalFunc& func : mExternalFuncs) {
         if (func.HashedName == hashed_name) {
             return &func;
         }
@@ -336,12 +336,12 @@ FxScriptExternalFunc* FxConfigScript::FindExternalAction(FxHash hashed_name)
     return nullptr;
 }
 
-FxScriptAction* FxConfigScript::FindAction(FxHash hashed_name)
+FoxFunction* FoxConfigScript::FindFunction(FoxHash hashed_name)
 {
-    FxScriptScope* scope = mCurrentScope;
+    FoxScope* scope = mCurrentScope;
 
     while (scope) {
-        FxScriptAction* var = scope->FindActionInScope(hashed_name);
+        FoxFunction* var = scope->FindFunctionInScope(hashed_name);
         if (var) {
             return var;
         }
@@ -352,7 +352,7 @@ FxScriptAction* FxConfigScript::FindAction(FxHash hashed_name)
     return nullptr;
 }
 
-void FxConfigScript::Execute(FxScriptVM& vm)
+void FoxConfigScript::Execute(FoxVM& vm)
 {
     DefineDefaultExternalFunctions();
 
@@ -365,33 +365,33 @@ void FxConfigScript::Execute(FxScriptVM& vm)
     printf("\n=====\n");
 
 
-    FxScriptIREmitter ir_emitter;
+    FoxIREmitter ir_emitter;
     ir_emitter.BeginEmitting(mRootBlock);
 
     printf("\n=====\n");
 
-    FxScriptIRPrinter ir_printer(ir_emitter.mBytecode);
+    FoxIRPrinter ir_printer(ir_emitter.mBytecode);
 
     ir_printer.Print();
 
 
 #if 0
-    FxScriptBCEmitter emitter;
+    FoxBCEmitter emitter;
     emitter.BeginEmitting(mRootBlock);
 
     printf("\n=====\n");
 
-    FxScriptBCPrinter printer(emitter.mBytecode);
+    FoxBCPrinter printer(emitter.mBytecode);
     printer.Print();
 
     printf("\n=====\n");
 
-    FxScriptTranspilerX86 transpiler(emitter.mBytecode);
+    FoxTranspilerX86 transpiler(emitter.mBytecode);
     transpiler.Print();
 
     printf("\n=====\n");
 
-    for (FxScriptBytecodeVarHandle& handle : emitter.VarHandles) {
+    for (FoxBytecodeVarHandle& handle : emitter.VarHandles) {
         printf("Var(%u) AT %lld\n", handle.HashedName, handle.Offset);
     }
 
@@ -400,7 +400,7 @@ void FxConfigScript::Execute(FxScriptVM& vm)
     vm.mExternalFuncs = mExternalFuncs;
     vm.Start(std::move(emitter.mBytecode));
 
-    for (FxScriptBytecodeVarHandle& handle : emitter.VarHandles) {
+    for (FoxBytecodeVarHandle& handle : emitter.VarHandles) {
         printf("Var(%u) AT %lld -> %u\n", handle.HashedName, handle.Offset, vm.Stack[handle.Offset]);
     }
 
@@ -409,7 +409,7 @@ void FxConfigScript::Execute(FxScriptVM& vm)
 }
 
 #if 0
-bool FxConfigScript::ExecuteUserCommand(const char* command, FxScriptInterpreter& interpreter)
+bool FoxConfigScript::ExecuteUserCommand(const char* command, FoxInterpreter& interpreter)
 {
     mHasErrors = false;
 
@@ -428,15 +428,15 @@ bool FxConfigScript::ExecuteUserCommand(const char* command, FxScriptInterpreter
         char* data_buffer = FX_SCRIPT_ALLOC_MEMORY(char, length_of_command + 1);
         memcpy(data_buffer, command, length_of_command);
 
-        FxTokenizer tokenizer(data_buffer, length_of_command);
+        FoxTokenizer tokenizer(data_buffer, length_of_command);
         tokenizer.Tokenize();
 
-        for (FxTokenizer::Token& token : tokenizer.GetTokens()) {
+        for (FoxTokenizer::Token& token : tokenizer.GetTokens()) {
             // token.Print();
             mTokens.Insert(token);
         }
 
-        /*for (FxTokenizer::Token& token : mTokens) {
+        /*for (FoxTokenizer::Token& token : mTokens) {
             token.Print();
         }*/
     }
@@ -444,14 +444,14 @@ bool FxConfigScript::ExecuteUserCommand(const char* command, FxScriptInterpreter
     mTokenIndex = new_token_index;
     mInCommandMode = true;
 
-    FxAstBlock* root_block = FX_SCRIPT_ALLOC_NODE(FxAstBlock);
+    FoxAstBlock* root_block = FX_SCRIPT_ALLOC_NODE(FoxAstBlock);
 
-    FxAstNode* statement;
+    FoxAstNode* statement;
     while ((statement = ParseStatementAsCommand(root_block))) {
         root_block->Statements.push_back(statement);
     }
 
-    // FxAstNode* node = ParseStatementAsCommand();
+    // FoxAstNode* node = ParseStatementAsCommand();
 
     // Revert the current state if there have been errors
     if (root_block == nullptr) {
@@ -488,19 +488,19 @@ bool FxConfigScript::ExecuteUserCommand(const char* command, FxScriptInterpreter
 
 #endif
 
-FxScriptValue FxConfigScript::ParseValue()
+FoxValue FoxConfigScript::ParseValue()
 {
     Token& token = GetToken();
     TT token_type = token.Type;
-    FxScriptValue value;
+    FoxValue value;
 
     if (token_type == TT::Identifier) {
-        FxScriptVar* var = FindVar(token.GetHash());
+        FoxVar* var = FindVar(token.GetHash());
 
         if (var) {
-            value.Type = FxScriptValue::REF;
+            value.Type = FoxValue::REF;
 
-            FxAstVarRef* var_ref = FX_SCRIPT_ALLOC_NODE(FxAstVarRef);
+            FoxAstVarRef* var_ref = FX_SCRIPT_ALLOC_NODE(FoxAstVarRef);
             var_ref->Name = var->Name;
             var_ref->Scope = var->Scope;
 
@@ -526,17 +526,17 @@ FxScriptValue FxConfigScript::ParseValue()
     switch (token_type) {
     case TT::Integer:
         EatToken(TT::Integer);
-        value.Type = FxScriptValue::INT;
+        value.Type = FoxValue::INT;
         value.ValueInt = token.ToInt();
         break;
     case TT::Float:
         EatToken(TT::Float);
-        value.Type = FxScriptValue::FLOAT;
+        value.Type = FoxValue::FLOAT;
         value.ValueFloat = token.ToFloat();
         break;
     case TT::String:
         EatToken(TT::String);
-        value.Type = FxScriptValue::STRING;
+        value.Type = FoxValue::STRING;
         value.ValueString = token.GetHeapStr();
         break;
     default:;
@@ -551,12 +551,12 @@ FxScriptValue FxConfigScript::ParseValue()
             return (rval_);                                                                                                                          \
     }
 
-static bool IsTokenTypeLiteral(FxTokenizer::TokenType type)
+static bool IsTokenTypeLiteral(FoxTokenizer::TokenType type)
 {
     return (type == TT::Integer || type == TT::Float || type == TT::String);
 }
 
-FxAstNode* FxConfigScript::ParseRhs()
+FoxAstNode* FoxConfigScript::ParseRhs()
 {
     RETURN_IF_NO_TOKENS(nullptr);
 
@@ -572,31 +572,31 @@ FxAstNode* FxConfigScript::ParseRhs()
         }
     }
 
-    FxTokenizer::Token& token = GetToken();
+    FoxTokenizer::Token& token = GetToken();
 
-    FxAstNode* lhs = nullptr;
+    FoxAstNode* lhs = nullptr;
 
     if (token.Type == TT::Identifier) {
         if (has_parameters) {
-            lhs = ParseActionCall();
+            lhs = ParseFunctionCall();
         }
         else {
-            FxScriptExternalFunc* external_action = FindExternalAction(token.GetHash());
-            if (external_action != nullptr) {
-                lhs = ParseActionCall();
+            FoxExternalFunc* external_function = FindExternalFunction(token.GetHash());
+            if (external_function != nullptr) {
+                lhs = ParseFunctionCall();
             }
 
-            FxScriptAction* action = FindAction(token.GetHash());
-            if (action != nullptr) {
-                lhs = ParseActionCall();
+            FoxFunction* function = FindFunction(token.GetHash());
+            if (function != nullptr) {
+                lhs = ParseFunctionCall();
             }
         }
     }
     if (!lhs) {
         if (IsTokenTypeLiteral(token.Type) || token.Type == TT::Identifier) {
-            FxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FxAstLiteral);
+            FoxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FoxAstLiteral);
 
-            FxScriptValue value = ParseValue();
+            FoxValue value = ParseValue();
             literal->Value = value;
 
             lhs = literal;
@@ -607,12 +607,12 @@ FxAstNode* FxConfigScript::ParseRhs()
     }
 
 
-    // FxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FxAstLiteral);
+    // FoxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FoxAstLiteral);
     // literal->Value = value;
 
     TT op_type = GetToken(0).Type;
     if (op_type == TT::Plus || op_type == TT::Minus) {
-        FxAstBinop* binop = FX_SCRIPT_ALLOC_NODE(FxAstBinop);
+        FoxAstBinop* binop = FX_SCRIPT_ALLOC_NODE(FoxAstBinop);
 
         binop->Left = lhs;
         binop->OpToken = &EatToken(op_type);
@@ -638,37 +638,37 @@ FxAstNode* FxConfigScript::ParseRhs()
         }
     }
 
-    FxTokenizer::Token& token = GetToken();
+    FoxTokenizer::Token& token = GetToken();
 
-    FxAstNode* lhs = nullptr;
+    FoxAstNode* lhs = nullptr;
 
     if (token.Type == TT::Identifier) {
         if (has_parameters) {
-            lhs = ParseActionCall();
+            lhs = ParseFunctionCall();
         }
         else {
-            FxScriptExternalFunc* external_action = FindExternalAction(token.GetHash());
-            if (external_action != nullptr) {
-                return ParseActionCall();
+            FoxExternalFunc* external_function = FindExternalFunction(token.GetHash());
+            if (external_function != nullptr) {
+                return ParseFunctionCall();
             }
 
-            FxScriptAction* action = FindAction(token.GetHash());
-            if (action != nullptr) {
-                return ParseActionCall();
+            FoxFunction* function = FindFunction(token.GetHash());
+            if (function != nullptr) {
+                return ParseFunctionCall();
             }
 
         }
     }
 
     else if (IsTokenTypeLiteral(token.Type) || token.Type == TT::Identifier) {
-        FxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FxAstLiteral);
+        FoxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FoxAstLiteral);
         literal->Value = ParseValue();
         lhs = literal;
     }
 
     TT op_type = GetToken(0).Type;
     if (op_type == TT::Plus || op_type == TT::Minus) {
-        FxAstBinop* binop = FX_SCRIPT_ALLOC_NODE(FxAstBinop);
+        FoxAstBinop* binop = FX_SCRIPT_ALLOC_NODE(FoxAstBinop);
 
         binop->Left = lhs;
         binop->OpToken = &EatToken(op_type);
@@ -681,7 +681,7 @@ FxAstNode* FxConfigScript::ParseRhs()
     */
 }
 
-FxAstAssign* FxConfigScript::TryParseAssignment(FxTokenizer::Token* var_name)
+FoxAstAssign* FoxConfigScript::TryParseAssignment(FoxTokenizer::Token* var_name)
 {
     if (GetToken().Type != TT::Equals) {
         return nullptr;
@@ -689,9 +689,9 @@ FxAstAssign* FxConfigScript::TryParseAssignment(FxTokenizer::Token* var_name)
 
     EatToken(TT::Equals);
 
-    FxAstAssign* node = FX_SCRIPT_ALLOC_NODE(FxAstAssign);
+    FoxAstAssign* node = FX_SCRIPT_ALLOC_NODE(FoxAstAssign);
 
-    FxAstVarRef* var_ref = FX_SCRIPT_ALLOC_NODE(FxAstVarRef);
+    FoxAstVarRef* var_ref = FX_SCRIPT_ALLOC_NODE(FoxAstVarRef);
     var_ref->Name = var_name;
     var_ref->Scope = mCurrentScope;
     node->Var = var_ref;
@@ -702,7 +702,7 @@ FxAstAssign* FxConfigScript::TryParseAssignment(FxTokenizer::Token* var_name)
     return node;
 }
 
-void FxConfigScript::DefineExternalVar(const char* type, const char* name, const FxScriptValue& value)
+void FoxConfigScript::DefineExternalVar(const char* type, const char* name, const FoxValue& value)
 {
     Token* name_token = FX_SCRIPT_ALLOC_MEMORY(Token, sizeof(Token));
     Token* type_token = FX_SCRIPT_ALLOC_MEMORY(Token, sizeof(Token));
@@ -731,9 +731,9 @@ void FxConfigScript::DefineExternalVar(const char* type, const char* name, const
         name_token->Length = name_len + 1;
     }
 
-    FxScriptScope* definition_scope = &mScopes[0];
+    FoxScope* definition_scope = &mScopes[0];
 
-    FxScriptVar var(type_token, name_token, definition_scope, true);
+    FoxVar var(type_token, name_token, definition_scope, true);
     var.Value = value;
 
     definition_scope->Vars.Insert(var);
@@ -743,7 +743,7 @@ void FxConfigScript::DefineExternalVar(const char* type, const char* name, const
     var.Type = nullptr;
 }
 
-FxAstNode* FxConfigScript::ParseStatementAsCommand(FxAstBlock* parent_block)
+FoxAstNode* FoxConfigScript::ParseStatementAsCommand(FoxAstBlock* parent_block)
 {
     if (mHasErrors) {
         return nullptr;
@@ -760,7 +760,7 @@ FxAstNode* FxConfigScript::ParseStatementAsCommand(FxAstBlock* parent_block)
     }
 
     // Try to parse as a keyword first
-    FxAstNode* node = TryParseKeyword(parent_block);
+    FoxAstNode* node = TryParseKeyword(parent_block);
 
     if (node) {
         RETURN_IF_NO_TOKENS(node);
@@ -783,14 +783,14 @@ FxAstNode* FxConfigScript::ParseStatementAsCommand(FxAstBlock* parent_block)
         }
         // If there is what looks to be a function call, try it
         else {
-            FxScriptExternalFunc* external_action = FindExternalAction(GetToken().GetHash());
-            if (external_action != nullptr) {
-                node = ParseActionCall();
+            FoxExternalFunc* external_function = FindExternalFunction(GetToken().GetHash());
+            if (external_function != nullptr) {
+                node = ParseFunctionCall();
             }
             else {
-                FxScriptAction* action = FindAction(GetToken().GetHash());
-                if (action != nullptr) {
-                    node = ParseActionCall();
+                FoxFunction* function = FindFunction(GetToken().GetHash());
+                if (function != nullptr) {
+                    node = ParseFunctionCall();
                 }
             }
         }
@@ -807,7 +807,7 @@ FxAstNode* FxConfigScript::ParseStatementAsCommand(FxAstBlock* parent_block)
     return node;
 }
 
-FxAstNode* FxConfigScript::ParseStatement(FxAstBlock* parent_block)
+FoxAstNode* FoxConfigScript::ParseStatement(FoxAstBlock* parent_block)
 {
     if (mHasErrors) {
         return nullptr;
@@ -820,7 +820,7 @@ FxAstNode* FxConfigScript::ParseStatement(FxAstBlock* parent_block)
 
         mInCommandMode = true;
 
-        FxAstCommandMode* cmd_mode = FX_SCRIPT_ALLOC_NODE(FxAstCommandMode);
+        FoxAstCommandMode* cmd_mode = FX_SCRIPT_ALLOC_NODE(FoxAstCommandMode);
         cmd_mode->Node = ParseStatementAsCommand(parent_block);
 
         mInCommandMode = false;
@@ -829,7 +829,7 @@ FxAstNode* FxConfigScript::ParseStatement(FxAstBlock* parent_block)
     }
 
     while (GetToken().Type == TT::DocComment) {
-        FxAstDocComment* comment = FX_SCRIPT_ALLOC_NODE(FxAstDocComment);
+        FoxAstDocComment* comment = FX_SCRIPT_ALLOC_NODE(FoxAstDocComment);
         comment->Comment = &EatToken(TT::DocComment);
         CurrentDocComments.push_back(comment);
 
@@ -847,11 +847,11 @@ FxAstNode* FxConfigScript::ParseStatement(FxAstBlock* parent_block)
         }
     }
 
-    FxAstNode* node = TryParseKeyword(parent_block);
+    FoxAstNode* node = TryParseKeyword(parent_block);
 
     if (!node && (mTokenIndex < mTokens.Size() && GetToken().Type == TT::Identifier)) {
         if (mTokenIndex + 1 < mTokens.Size() && GetToken(1).Type == TT::LParen) {
-            node = ParseActionCall();
+            node = ParseFunctionCall();
         }
         else if (mTokenIndex + 1 < mTokens.Size() && GetToken(1).Type == TT::Equals) {
             Token& assign_name = EatToken(TT::Identifier);
@@ -877,17 +877,17 @@ FxAstNode* FxConfigScript::ParseStatement(FxAstBlock* parent_block)
     return node;
 }
 
-FxAstBlock* FxConfigScript::ParseBlock()
+FoxAstBlock* FoxConfigScript::ParseBlock()
 {
     bool in_command = mInCommandMode;
     mInCommandMode = false;
 
-    FxAstBlock* block = FX_SCRIPT_ALLOC_NODE(FxAstBlock);
+    FoxAstBlock* block = FX_SCRIPT_ALLOC_NODE(FoxAstBlock);
 
     EatToken(TT::LBrace);
 
     while (GetToken().Type != TT::RBrace) {
-        FxAstNode* command = ParseStatement(block);
+        FoxAstNode* command = ParseStatement(block);
         if (command == nullptr) {
             break;
         }
@@ -900,16 +900,16 @@ FxAstBlock* FxConfigScript::ParseBlock()
     return block;
 }
 
-FxAstActionDecl* FxConfigScript::ParseActionDeclare()
+FoxAstFunctionDecl* FoxConfigScript::ParseFunctionDeclare()
 {
-    FxAstActionDecl* node = FX_SCRIPT_ALLOC_NODE(FxAstActionDecl);
+    FoxAstFunctionDecl* node = FX_SCRIPT_ALLOC_NODE(FoxAstFunctionDecl);
 
     if (!CurrentDocComments.empty()) {
         node->DocComments = CurrentDocComments;
         CurrentDocComments.clear();
     }
 
-    // Name of the action
+    // Name of the function
     Token& name = EatToken(TT::Identifier);
 
     node->Name = &name;
@@ -917,7 +917,7 @@ FxAstActionDecl* FxConfigScript::ParseActionDeclare()
     PushScope();
     EatToken(TT::LParen);
 
-    FxAstBlock* params = FX_SCRIPT_ALLOC_NODE(FxAstBlock);
+    FoxAstBlock* params = FX_SCRIPT_ALLOC_NODE(FoxAstBlock);
 
     // Parse the parameter list
     while (GetToken().Type != TT::RParen) {
@@ -935,7 +935,7 @@ FxAstActionDecl* FxConfigScript::ParseActionDeclare()
 
     // Parse the return type
     /*if (GetToken().Type != TT::LBrace) {
-        FxAstVarDecl* return_decl = ParseVarDeclare();
+        FoxAstVarDecl* return_decl = ParseVarDeclare();
         node->ReturnVar = return_decl;
     }*/
 
@@ -946,7 +946,7 @@ FxAstActionDecl* FxConfigScript::ParseActionDeclare()
         // Get the token for the type
         Token& type_token = EatToken(TT::Identifier);
 
-        FxAstVarDecl* return_decl = InternalVarDeclare(mTokenReturnVar, &type_token);
+        FoxAstVarDecl* return_decl = InternalVarDeclare(mTokenReturnVar, &type_token);
         node->ReturnVar = return_decl;
     }
 
@@ -956,17 +956,17 @@ FxAstActionDecl* FxConfigScript::ParseActionDeclare()
 
     node->Params = params;
 
-    FxScriptAction action(&name, mCurrentScope, node->Block, node);
-    mCurrentScope->Actions.Insert(action);
+    FoxFunction function(&name, mCurrentScope, node->Block, node);
+    mCurrentScope->Functions.Insert(function);
 
     return node;
 }
 
-// FxScriptValue FxConfigScript::TryCallInternalFunc(FxHash func_name, std::vector<FxScriptValue>& params)
+// FoxValue FoxConfigScript::TryCallInternalFunc(FoxHash func_name, std::vector<FoxValue>& params)
 //{
-//     FxScriptValue return_value;
+//     FoxValue return_value;
 //
-//     for (const FxScriptInternalFunc& func : mInternalFuncs) {
+//     for (const FoxInternalFunc& func : mInternalFuncs) {
 //         if (func.HashedName == func_name) {
 //             func.Func(params, &return_value);
 //             return return_value;
@@ -976,14 +976,14 @@ FxAstActionDecl* FxConfigScript::ParseActionDeclare()
 //     return return_value;
 // }
 
-FxAstActionCall* FxConfigScript::ParseActionCall()
+FoxAstFunctionCall* FoxConfigScript::ParseFunctionCall()
 {
-    FxAstActionCall* node = FX_SCRIPT_ALLOC_NODE(FxAstActionCall);
+    FoxAstFunctionCall* node = FX_SCRIPT_ALLOC_NODE(FoxAstFunctionCall);
 
     Token& name = EatToken(TT::Identifier);
 
     node->HashedName = name.GetHash();
-    node->Action = FindAction(node->HashedName);
+    node->Function = FindFunction(node->HashedName);
 
     TT end_token_type = TT::Semicolon;
 
@@ -996,7 +996,7 @@ FxAstActionCall* FxConfigScript::ParseActionCall()
     }
 
     while (GetToken().Type != end_token_type) {
-        FxAstNode* param = ParseRhs();
+        FoxAstNode* param = ParseRhs();
 
         if (param == nullptr) {
             break;
@@ -1027,13 +1027,13 @@ FxAstActionCall* FxConfigScript::ParseActionCall()
 }
 
 
-// void FxConfigScript::ParseDoCall()
+// void FoxConfigScript::ParseDoCall()
 //{
 //     Token& call_name = EatToken(TT::Identifier);
 //
 //     EatToken(TT::LParen);
 //
-//     std::vector<FxScriptValue> params;
+//     std::vector<FoxValue> params;
 //
 //     while (true) {
 //         params.push_back(ParseValue());
@@ -1060,11 +1060,11 @@ FxAstActionCall* FxConfigScript::ParseActionCall()
 // }
 
 
-FxAstBlock* FxConfigScript::Parse()
+FoxAstBlock* FoxConfigScript::Parse()
 {
-    FxAstBlock* root_block = FX_SCRIPT_ALLOC_NODE(FxAstBlock);
+    FoxAstBlock* root_block = FX_SCRIPT_ALLOC_NODE(FoxAstBlock);
 
-    FxAstNode* keyword;
+    FoxAstNode* keyword;
     while ((keyword = ParseStatement(root_block))) {
         root_block->Statements.push_back(keyword);
     }
@@ -1077,39 +1077,39 @@ FxAstBlock* FxConfigScript::Parse()
         return nullptr;
     }
 
-    FxAstPrinter printer(root_block);
+    FoxAstPrinter printer(root_block);
     printer.Print(root_block);
 
     return root_block;
 }
 
 
-void FxConfigScript::DefineDefaultExternalFunctions()
+void FoxConfigScript::DefineDefaultExternalFunctions()
 {
     // log([int | float | string | ref] args...)
     RegisterExternalFunc(
-        FxHashStr("log"), {}, // Do not check argument types as we handle it here
-        [](FxScriptVM* vm, std::vector<FxScriptValue>& args, FxScriptValue* return_value)
+        FoxHashStr("log"), {}, // Do not check argument types as we handle it here
+        [](FoxVM* vm, std::vector<FoxValue>& args, FoxValue* return_value)
         {
             printf("[SCRIPT]: ");
 
             for (int i = args.size() - 1; i >= 0; i--) {
-                FxScriptValue& arg = args[i];
+                FoxValue& arg = args[i];
 
-                // const FxScriptValue& value = interpreter.GetImmediateValue(arg);
-                const FxScriptValue& value = arg;
+                // const FoxValue& value = interpreter.GetImmediateValue(arg);
+                const FoxValue& value = arg;
 
                 switch (value.Type) {
-                case FxScriptValue::NONETYPE:
+                case FoxValue::NONETYPE:
                     printf("[none]");
                     break;
-                case FxScriptValue::INT:
+                case FoxValue::INT:
                     printf("%d", value.ValueInt);
                     break;
-                case FxScriptValue::FLOAT:
+                case FoxValue::FLOAT:
                     printf("%f", value.ValueFloat);
                     break;
-                case FxScriptValue::STRING:
+                case FoxValue::STRING:
                     printf("%s", value.ValueString);
                     break;
                 default:
@@ -1127,10 +1127,10 @@ void FxConfigScript::DefineDefaultExternalFunctions()
 }
 
 
-void FxConfigScript::RegisterExternalFunc(FxHash func_name, std::vector<FxScriptValue::ValueType> param_types,
-                                          FxScriptExternalFunc::FuncType callback, bool is_variadic)
+void FoxConfigScript::RegisterExternalFunc(FoxHash func_name, std::vector<FoxValue::ValueType> param_types, FoxExternalFunc::FuncType callback,
+                                           bool is_variadic)
 {
-    FxScriptExternalFunc func {
+    FoxExternalFunc func {
         .HashedName = func_name,
         .Function = callback,
         .ParameterTypes = param_types,
@@ -1147,9 +1147,9 @@ void FxConfigScript::RegisterExternalFunc(FxHash func_name, std::vector<FxScript
 
 #pragma region BytecodeEmitter
 
-#include "FxScriptBytecode.hpp"
+#include "FoxScriptBytecode.hpp"
 
-void FxScriptBCEmitter::BeginEmitting(FxAstNode* node)
+void FoxBCEmitter::BeginEmitting(FoxAstNode* node)
 {
     mStackSize = 1024;
 
@@ -1176,30 +1176,30 @@ void FxScriptBCEmitter::BeginEmitting(FxAstNode* node)
         return (value_);                                                                                                                             \
     }
 
-void FxScriptBCEmitter::Emit(FxAstNode* node)
+void FoxBCEmitter::Emit(FoxAstNode* node)
 {
     RETURN_IF_NO_NODE(node);
 
     if (node->NodeType == FX_AST_BLOCK) {
-        return EmitBlock(reinterpret_cast<FxAstBlock*>(node));
+        return EmitBlock(reinterpret_cast<FoxAstBlock*>(node));
     }
     else if (node->NodeType == FX_AST_ACTIONDECL) {
-        return EmitAction(reinterpret_cast<FxAstActionDecl*>(node));
+        return EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(node));
     }
     else if (node->NodeType == FX_AST_ACTIONCALL) {
-        return DoActionCall(reinterpret_cast<FxAstActionCall*>(node));
+        return DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(node));
     }
     else if (node->NodeType == FX_AST_ASSIGN) {
-        return EmitAssign(reinterpret_cast<FxAstAssign*>(node));
+        return EmitAssign(reinterpret_cast<FoxAstAssign*>(node));
     }
     else if (node->NodeType == FX_AST_VARDECL) {
-        DoVarDeclare(reinterpret_cast<FxAstVarDecl*>(node));
+        DoVarDeclare(reinterpret_cast<FoxAstVarDecl*>(node));
         return;
     }
     else if (node->NodeType == FX_AST_RETURN) {
-        constexpr FxHash return_val_hash = FxHashStr(FX_SCRIPT_VAR_RETURN_VAL);
+        constexpr FoxHash return_val_hash = FoxHashStr(FX_SCRIPT_VAR_RETURN_VAL);
 
-        FxScriptBytecodeVarHandle* return_var = FindVarHandle(return_val_hash);
+        FoxBytecodeVarHandle* return_var = FindVarHandle(return_val_hash);
 
         if (return_var) {
             DoLoad(return_var->Offset, FX_REG_XR);
@@ -1211,9 +1211,9 @@ void FxScriptBCEmitter::Emit(FxAstNode* node)
     }
 }
 
-FxScriptBytecodeVarHandle* FxScriptBCEmitter::FindVarHandle(FxHash hashed_name)
+FoxBytecodeVarHandle* FoxBCEmitter::FindVarHandle(FoxHash hashed_name)
 {
-    for (FxScriptBytecodeVarHandle& handle : VarHandles) {
+    for (FoxBytecodeVarHandle& handle : VarHandles) {
         if (handle.HashedName == hashed_name) {
             return &handle;
         }
@@ -1221,9 +1221,9 @@ FxScriptBytecodeVarHandle* FxScriptBCEmitter::FindVarHandle(FxHash hashed_name)
     return nullptr;
 }
 
-FxScriptBytecodeActionHandle* FxScriptBCEmitter::FindActionHandle(FxHash hashed_name)
+FoxBytecodeFunctionHandle* FoxBCEmitter::FindFunctionHandle(FoxHash hashed_name)
 {
-    for (FxScriptBytecodeActionHandle& handle : ActionHandles) {
+    for (FoxBytecodeFunctionHandle& handle : FunctionHandles) {
         if (handle.HashedName == hashed_name) {
             return &handle;
         }
@@ -1232,7 +1232,7 @@ FxScriptBytecodeActionHandle* FxScriptBCEmitter::FindActionHandle(FxHash hashed_
 }
 
 
-FxScriptRegister FxScriptBCEmitter::FindFreeRegister()
+FoxBCRegister FoxBCEmitter::FindFreeRegister()
 {
     uint16 gp_r = 0x01;
 
@@ -1243,16 +1243,16 @@ FxScriptRegister FxScriptBCEmitter::FindFreeRegister()
             // We are starting on 0x01, so register index should be N + 1
             const int register_index = i + 1;
 
-            return static_cast<FxScriptRegister>(register_index);
+            return static_cast<FoxBCRegister>(register_index);
         }
 
         gp_r <<= 1;
     }
 
-    return FxScriptRegister::FX_REG_NONE;
+    return FoxBCRegister::FX_REG_NONE;
 }
 
-const char* FxScriptBCEmitter::GetRegisterName(FxScriptRegister reg)
+const char* FoxBCEmitter::GetRegisterName(FoxBCRegister reg)
 {
     switch (reg) {
     case FX_REG_NONE:
@@ -1277,7 +1277,7 @@ const char* FxScriptBCEmitter::GetRegisterName(FxScriptRegister reg)
     return "NONE";
 }
 
-FxScriptRegister FxScriptBCEmitter::RegFlagToReg(FxScriptRegisterFlag reg_flag)
+FoxBCRegister FoxBCEmitter::RegFlagToReg(FoxRegisterFlag reg_flag)
 {
     switch (reg_flag) {
     case FX_REGFLAG_NONE:
@@ -1299,7 +1299,7 @@ FxScriptRegister FxScriptBCEmitter::RegFlagToReg(FxScriptRegisterFlag reg_flag)
     return FX_REG_NONE;
 }
 
-FxScriptRegisterFlag FxScriptBCEmitter::RegToRegFlag(FxScriptRegister reg)
+FoxRegisterFlag FoxBCEmitter::RegToRegFlag(FoxBCRegister reg)
 {
     switch (reg) {
     case FX_REG_NONE:
@@ -1325,25 +1325,25 @@ FxScriptRegisterFlag FxScriptBCEmitter::RegToRegFlag(FxScriptRegister reg)
 }
 
 
-void FxScriptBCEmitter::Write16(uint16 value)
+void FoxBCEmitter::Write16(uint16 value)
 {
     mBytecode.Insert(static_cast<uint8>(value >> 8));
     mBytecode.Insert(static_cast<uint8>(value));
 }
 
-void FxScriptBCEmitter::Write32(uint32 value)
+void FoxBCEmitter::Write32(uint32 value)
 {
     Write16(static_cast<uint16>(value >> 16));
     Write16(static_cast<uint16>(value));
 }
 
-void FxScriptBCEmitter::WriteOp(uint8 op_base, uint8 op_spec)
+void FoxBCEmitter::WriteOp(uint8 op_base, uint8 op_spec)
 {
     mBytecode.Insert(op_base);
     mBytecode.Insert(op_spec);
 }
 
-using RhsMode = FxScriptBCEmitter::RhsMode;
+using RhsMode = FoxBCEmitter::RhsMode;
 
 #define MARK_REGISTER_USED(regn_)                                                                                                                    \
     {                                                                                                                                                \
@@ -1354,20 +1354,20 @@ using RhsMode = FxScriptBCEmitter::RhsMode;
         MarkRegisterFree(regn_);                                                                                                                     \
     }
 
-void FxScriptBCEmitter::MarkRegisterUsed(FxScriptRegister reg)
+void FoxBCEmitter::MarkRegisterUsed(FoxBCRegister reg)
 {
-    FxScriptRegisterFlag rflag = RegToRegFlag(reg);
-    mRegsInUse = static_cast<FxScriptRegisterFlag>(uint16(mRegsInUse) | uint16(rflag));
+    FoxRegisterFlag rflag = RegToRegFlag(reg);
+    mRegsInUse = static_cast<FoxRegisterFlag>(uint16(mRegsInUse) | uint16(rflag));
 }
 
-void FxScriptBCEmitter::MarkRegisterFree(FxScriptRegister reg)
+void FoxBCEmitter::MarkRegisterFree(FoxBCRegister reg)
 {
-    FxScriptRegisterFlag rflag = RegToRegFlag(reg);
+    FoxRegisterFlag rflag = RegToRegFlag(reg);
 
-    mRegsInUse = static_cast<FxScriptRegisterFlag>(uint16(mRegsInUse) & (~uint16(rflag)));
+    mRegsInUse = static_cast<FoxRegisterFlag>(uint16(mRegsInUse) & (~uint16(rflag)));
 }
 
-void FxScriptBCEmitter::EmitSave32(int16 offset, uint32 value)
+void FoxBCEmitter::EmitSave32(int16 offset, uint32 value)
 {
     // SAVE32 [i16 offset] [i32]
     WriteOp(OpBase_Save, OpSpecSave_Int32);
@@ -1376,7 +1376,7 @@ void FxScriptBCEmitter::EmitSave32(int16 offset, uint32 value)
     Write32(value);
 }
 
-void FxScriptBCEmitter::EmitSaveReg32(int16 offset, FxScriptRegister reg)
+void FoxBCEmitter::EmitSaveReg32(int16 offset, FoxBCRegister reg)
 {
     // SAVE32r [i16 offset] [%r32]
     WriteOp(OpBase_Save, OpSpecSave_Reg32);
@@ -1386,7 +1386,7 @@ void FxScriptBCEmitter::EmitSaveReg32(int16 offset, FxScriptRegister reg)
 }
 
 
-void FxScriptBCEmitter::EmitSaveAbsolute32(uint32 position, uint32 value)
+void FoxBCEmitter::EmitSaveAbsolute32(uint32 position, uint32 value)
 {
     // SAVE32a [i32 offset] [i32]
     WriteOp(OpBase_Save, OpSpecSave_AbsoluteInt32);
@@ -1395,7 +1395,7 @@ void FxScriptBCEmitter::EmitSaveAbsolute32(uint32 position, uint32 value)
     Write32(value);
 }
 
-void FxScriptBCEmitter::EmitSaveAbsoluteReg32(uint32 position, FxScriptRegister reg)
+void FoxBCEmitter::EmitSaveAbsoluteReg32(uint32 position, FoxBCRegister reg)
 {
     // SAVE32r [i32 offset] [%r32]
     WriteOp(OpBase_Save, OpSpecSave_AbsoluteReg32);
@@ -1404,7 +1404,7 @@ void FxScriptBCEmitter::EmitSaveAbsoluteReg32(uint32 position, FxScriptRegister 
     Write16(reg);
 }
 
-void FxScriptBCEmitter::EmitPush32(uint32 value)
+void FoxBCEmitter::EmitPush32(uint32 value)
 {
     // PUSH32 [i32]
     WriteOp(OpBase_Push, OpSpecPush_Int32);
@@ -1413,7 +1413,7 @@ void FxScriptBCEmitter::EmitPush32(uint32 value)
     mStackOffset += 4;
 }
 
-void FxScriptBCEmitter::EmitPush32r(FxScriptRegister reg)
+void FoxBCEmitter::EmitPush32r(FoxBCRegister reg)
 {
     // PUSH32r [%r32]
     WriteOp(OpBase_Push, OpSpecPush_Reg32);
@@ -1423,7 +1423,7 @@ void FxScriptBCEmitter::EmitPush32r(FxScriptRegister reg)
 }
 
 
-void FxScriptBCEmitter::EmitPop32(FxScriptRegister output_reg)
+void FoxBCEmitter::EmitPop32(FoxBCRegister output_reg)
 {
     // POP32 [%r32]
     WriteOp(OpBase_Pop, (OpSpecPop_Int32 << 4) | (output_reg & 0x0F));
@@ -1431,80 +1431,80 @@ void FxScriptBCEmitter::EmitPop32(FxScriptRegister output_reg)
     mStackOffset -= 4;
 }
 
-void FxScriptBCEmitter::EmitLoad32(int offset, FxScriptRegister output_reg)
+void FoxBCEmitter::EmitLoad32(int offset, FoxBCRegister output_reg)
 {
     // LOAD [i16] [%r32]
     WriteOp(OpBase_Load, (OpSpecLoad_Int32 << 4) | (output_reg & 0x0F));
     Write16(static_cast<uint16>(offset));
 }
 
-void FxScriptBCEmitter::EmitLoadAbsolute32(uint32 position, FxScriptRegister output_reg)
+void FoxBCEmitter::EmitLoadAbsolute32(uint32 position, FoxBCRegister output_reg)
 {
     // LOADA [i32] [%r32]
     WriteOp(OpBase_Load, (OpSpecLoad_AbsoluteInt32 << 4) | (output_reg & 0x0F));
     Write32(position);
 }
 
-void FxScriptBCEmitter::EmitJumpRelative(uint16 offset)
+void FoxBCEmitter::EmitJumpRelative(uint16 offset)
 {
     WriteOp(OpBase_Jump, OpSpecJump_Relative);
     Write16(offset);
 }
 
-void FxScriptBCEmitter::EmitJumpAbsolute(uint32 position)
+void FoxBCEmitter::EmitJumpAbsolute(uint32 position)
 {
     WriteOp(OpBase_Jump, OpSpecJump_Absolute);
     Write32(position);
 }
 
 
-void FxScriptBCEmitter::EmitJumpAbsoluteReg32(FxScriptRegister reg)
+void FoxBCEmitter::EmitJumpAbsoluteReg32(FoxBCRegister reg)
 {
     WriteOp(OpBase_Jump, OpSpecJump_AbsoluteReg32);
     Write16(reg);
 }
 
-void FxScriptBCEmitter::EmitJumpCallAbsolute(uint32 position)
+void FoxBCEmitter::EmitJumpCallAbsolute(uint32 position)
 {
     WriteOp(OpBase_Jump, OpSpecJump_CallAbsolute);
     Write32(position);
 }
 
 
-void FxScriptBCEmitter::EmitJumpCallExternal(FxHash hashed_name)
+void FoxBCEmitter::EmitJumpCallExternal(FoxHash hashed_name)
 {
     WriteOp(OpBase_Jump, OpSpecJump_CallExternal);
     Write32(hashed_name);
 }
 
-void FxScriptBCEmitter::EmitJumpReturnToCaller()
+void FoxBCEmitter::EmitJumpReturnToCaller()
 {
     WriteOp(OpBase_Jump, OpSpecJump_ReturnToCaller);
 }
 
-void FxScriptBCEmitter::EmitMoveInt32(FxScriptRegister reg, uint32 value)
+void FoxBCEmitter::EmitMoveInt32(FoxBCRegister reg, uint32 value)
 {
     WriteOp(OpBase_Move, (OpSpecMove_Int32 << 4) | (reg & 0x0F));
     Write32(value);
 }
 
-void FxScriptBCEmitter::EmitParamsStart()
+void FoxBCEmitter::EmitParamsStart()
 {
     WriteOp(OpBase_Data, OpSpecData_ParamsStart);
 }
 
-void FxScriptBCEmitter::EmitType(FxScriptValue::ValueType type)
+void FoxBCEmitter::EmitType(FoxValue::ValueType type)
 {
     OpSpecType op_type = OpSpecType_Int;
 
-    if (type == FxScriptValue::STRING) {
+    if (type == FoxValue::STRING) {
         op_type = OpSpecType_String;
     }
 
     WriteOp(OpBase_Type, op_type);
 }
 
-uint32 FxScriptBCEmitter::EmitDataString(char* str, uint16 length)
+uint32 FoxBCEmitter::EmitDataString(char* str, uint16 length)
 {
     WriteOp(OpBase_Data, OpSpecData_String);
 
@@ -1534,20 +1534,20 @@ uint32 FxScriptBCEmitter::EmitDataString(char* str, uint16 length)
 }
 
 
-FxScriptRegister FxScriptBCEmitter::EmitBinop(FxAstBinop* binop, FxScriptBytecodeVarHandle* handle)
+FoxBCRegister FoxBCEmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle)
 {
     bool will_preserve_lhs = false;
     // Load the A and B values into the registers
-    FxScriptRegister a_reg = EmitRhs(binop->Left, RhsMode::RHS_FETCH_TO_REGISTER, handle);
+    FoxBCRegister a_reg = EmitRhs(binop->Left, RhsMode::RHS_FETCH_TO_REGISTER, handle);
 
-    // Since there is a chance that this register will be clobbered (by binop, action call, etc), we will
+    // Since there is a chance that this register will be clobbered (by binop, function call, etc), we will
     // push the value of the register here and return it after processing the RHS
     if (binop->Right->NodeType != FX_AST_LITERAL) {
         will_preserve_lhs = true;
         EmitPush32r(a_reg);
     }
 
-    FxScriptRegister b_reg = EmitRhs(binop->Right, RhsMode::RHS_FETCH_TO_REGISTER, handle);
+    FoxBCRegister b_reg = EmitRhs(binop->Right, RhsMode::RHS_FETCH_TO_REGISTER, handle);
 
     // Retrieve the previous LHS
     if (will_preserve_lhs) {
@@ -1568,9 +1568,9 @@ FxScriptRegister FxScriptBCEmitter::EmitBinop(FxAstBinop* binop, FxScriptBytecod
     return FX_REG_XR;
 }
 
-FxScriptRegister FxScriptBCEmitter::EmitVarFetch(FxAstVarRef* ref, RhsMode mode)
+FoxBCRegister FoxBCEmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
 {
-    FxScriptBytecodeVarHandle* var_handle = FindVarHandle(ref->Name->GetHash());
+    FoxBytecodeVarHandle* var_handle = FindVarHandle(ref->Name->GetHash());
 
     bool force_absolute_load = false;
 
@@ -1585,7 +1585,7 @@ FxScriptRegister FxScriptBCEmitter::EmitVarFetch(FxAstVarRef* ref, RhsMode mode)
         return FX_REG_NONE;
     }
 
-    FxScriptRegister reg = FindFreeRegister();
+    FoxBCRegister reg = FindFreeRegister();
 
     MARK_REGISTER_USED(reg);
 
@@ -1598,7 +1598,7 @@ FxScriptRegister FxScriptBCEmitter::EmitVarFetch(FxAstVarRef* ref, RhsMode mode)
     // If we are just copying the variable to this new variable, we can free the register after
     // we push to the stack.
     if (mode == RhsMode::RHS_DEFINE_IN_MEMORY) {
-        if (var_handle->Type == FxScriptValue::STRING) {
+        if (var_handle->Type == FoxValue::STRING) {
             EmitType(var_handle->Type);
         }
 
@@ -1612,7 +1612,7 @@ FxScriptRegister FxScriptBCEmitter::EmitVarFetch(FxAstVarRef* ref, RhsMode mode)
     return reg;
 }
 
-void FxScriptBCEmitter::DoLoad(uint32 stack_offset, FxScriptRegister output_reg, bool force_absolute)
+void FoxBCEmitter::DoLoad(uint32 stack_offset, FoxBCRegister output_reg, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative load
@@ -1628,7 +1628,7 @@ void FxScriptBCEmitter::DoLoad(uint32 stack_offset, FxScriptRegister output_reg,
     }
 }
 
-void FxScriptBCEmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute)
+void FoxBCEmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative save
@@ -1644,7 +1644,7 @@ void FxScriptBCEmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool forc
     }
 }
 
-void FxScriptBCEmitter::DoSaveReg32(uint32 stack_offset, FxScriptRegister reg, bool force_absolute)
+void FoxBCEmitter::DoSaveReg32(uint32 stack_offset, FoxBCRegister reg, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative save
@@ -1660,9 +1660,9 @@ void FxScriptBCEmitter::DoSaveReg32(uint32 stack_offset, FxScriptRegister reg, b
     }
 }
 
-void FxScriptBCEmitter::EmitAssign(FxAstAssign* assign)
+void FoxBCEmitter::EmitAssign(FoxAstAssign* assign)
 {
-    FxScriptBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->Name->GetHash());
+    FoxBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->Name->GetHash());
     if (var_handle == nullptr) {
         printf("!!! Var '%.*s' does not exist!\n", assign->Var->Name->Length, assign->Var->Name->Start);
         return;
@@ -1684,7 +1684,7 @@ void FxScriptBCEmitter::EmitAssign(FxAstAssign* assign)
     EmitRhs(assign->Rhs, RhsMode::RHS_ASSIGN_TO_HANDLE, var_handle);
 }
 
-FxScriptRegister FxScriptBCEmitter::EmitLiteralInt(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle)
+FoxBCRegister FoxBCEmitter::EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     // If this is on variable definition, push the value to the stack.
     if (mode == RhsMode::RHS_DEFINE_IN_MEMORY) {
@@ -1697,7 +1697,7 @@ FxScriptRegister FxScriptBCEmitter::EmitLiteralInt(FxAstLiteral* literal, RhsMod
     else if (mode == RhsMode::RHS_FETCH_TO_REGISTER) {
         // EmitPush32(literal->Value.ValueInt);
 
-        FxScriptRegister output_reg = FindFreeRegister();
+        FoxBCRegister output_reg = FindFreeRegister();
         // EmitPop32(output_reg);
 
         EmitMoveInt32(output_reg, literal->Value.ValueInt);
@@ -1719,7 +1719,7 @@ FxScriptRegister FxScriptBCEmitter::EmitLiteralInt(FxAstLiteral* literal, RhsMod
 }
 
 
-FxScriptRegister FxScriptBCEmitter::EmitLiteralString(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle)
+FoxBCRegister FoxBCEmitter::EmitLiteralString(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     const uint32 string_length = strlen(literal->Value.ValueString);
 
@@ -1729,7 +1729,7 @@ FxScriptRegister FxScriptBCEmitter::EmitLiteralString(FxAstLiteral* literal, Rhs
     // local string some_value = "Some String";
     if (mode == RhsMode::RHS_DEFINE_IN_MEMORY) {
         // Push the location and mark it as a pointer to a string
-        EmitType(FxScriptValue::STRING);
+        EmitType(FoxValue::STRING);
         EmitPush32(string_position);
 
         return FX_REG_NONE;
@@ -1738,13 +1738,13 @@ FxScriptRegister FxScriptBCEmitter::EmitLiteralString(FxAstLiteral* literal, Rhs
     // some_function("Some String")
     else if (mode == RhsMode::RHS_FETCH_TO_REGISTER) {
         // Push the location for the string and pop it back to a register.
-        EmitType(FxScriptValue::STRING);
+        EmitType(FoxValue::STRING);
 
         // Push the string position
         // EmitPush32(string_position);
 
         // Find a register to output to and write the index
-        FxScriptRegister output_reg = FindFreeRegister();
+        FoxBCRegister output_reg = FindFreeRegister();
         // EmitPop32(output_reg);
 
         EmitMoveInt32(output_reg, string_position);
@@ -1760,7 +1760,7 @@ FxScriptRegister FxScriptBCEmitter::EmitLiteralString(FxAstLiteral* literal, Rhs
         const bool force_absolute_save = (handle->ScopeIndex < mScopeIndex);
 
         DoSaveInt32(handle->Offset, string_position, force_absolute_save);
-        handle->Type = FxScriptValue::STRING;
+        handle->Type = FoxValue::STRING;
 
         return FX_REG_NONE;
     }
@@ -1768,20 +1768,20 @@ FxScriptRegister FxScriptBCEmitter::EmitLiteralString(FxAstLiteral* literal, Rhs
     return FX_REG_NONE;
 }
 
-FxScriptRegister FxScriptBCEmitter::EmitRhs(FxAstNode* rhs, FxScriptBCEmitter::RhsMode mode, FxScriptBytecodeVarHandle* handle)
+FoxBCRegister FoxBCEmitter::EmitRhs(FoxAstNode* rhs, FoxBCEmitter::RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     if (rhs->NodeType == FX_AST_LITERAL) {
-        FxAstLiteral* literal = reinterpret_cast<FxAstLiteral*>(rhs);
+        FoxAstLiteral* literal = reinterpret_cast<FoxAstLiteral*>(rhs);
 
-        if (literal->Value.Type == FxScriptValue::INT) {
+        if (literal->Value.Type == FoxValue::INT) {
             return EmitLiteralInt(literal, mode, handle);
         }
-        else if (literal->Value.Type == FxScriptValue::STRING) {
+        else if (literal->Value.Type == FoxValue::STRING) {
             return EmitLiteralString(literal, mode, handle);
         }
-        else if (literal->Value.Type == FxScriptValue::REF) {
+        else if (literal->Value.Type == FoxValue::REF) {
             // Reference another value, load from memory into register
-            FxScriptRegister output_register = EmitVarFetch(literal->Value.ValueRef, mode);
+            FoxBCRegister output_register = EmitVarFetch(literal->Value.ValueRef, mode);
             if (mode == RhsMode::RHS_ASSIGN_TO_HANDLE) {
                 DoSaveReg32(handle->Offset, output_register);
             }
@@ -1793,15 +1793,15 @@ FxScriptRegister FxScriptBCEmitter::EmitRhs(FxAstNode* rhs, FxScriptBCEmitter::R
     }
 
     else if (rhs->NodeType == FX_AST_ACTIONCALL || rhs->NodeType == FX_AST_BINOP) {
-        FxScriptRegister result_register = FX_REG_XR;
+        FoxBCRegister result_register = FX_REG_XR;
 
         if (rhs->NodeType == FX_AST_BINOP) {
-            result_register = EmitBinop(reinterpret_cast<FxAstBinop*>(rhs), handle);
+            result_register = EmitBinop(reinterpret_cast<FoxAstBinop*>(rhs), handle);
         }
 
         else if (rhs->NodeType == FX_AST_ACTIONCALL) {
-            DoActionCall(reinterpret_cast<FxAstActionCall*>(rhs));
-            // Action results are stored in XR
+            DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(rhs));
+            // Function results are stored in XR
             result_register = FX_REG_XR;
         }
 
@@ -1822,7 +1822,7 @@ FxScriptRegister FxScriptBCEmitter::EmitRhs(FxAstNode* rhs, FxScriptBCEmitter::R
             EmitPush32r(result_register);
 
             // Find a register to output to, and pop the value to there.
-            FxScriptRegister output_reg = FindFreeRegister();
+            FoxBCRegister output_reg = FindFreeRegister();
             EmitPop32(output_reg);
 
             // Mark the output register as used to store it
@@ -1843,29 +1843,29 @@ FxScriptRegister FxScriptBCEmitter::EmitRhs(FxAstNode* rhs, FxScriptBCEmitter::R
     return FX_REG_NONE;
 }
 
-FxScriptBytecodeVarHandle* FxScriptBCEmitter::DoVarDeclare(FxAstVarDecl* decl, VarDeclareMode mode)
+FoxBytecodeVarHandle* FoxBCEmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode)
 {
     RETURN_VALUE_IF_NO_NODE(decl, nullptr);
 
     const uint16 size_of_type = static_cast<uint16>(sizeof(int32));
 
-    const FxHash type_int = FxHashStr("int");
-    const FxHash type_string = FxHashStr("string");
+    const FoxHash type_int = FoxHashStr("int");
+    const FoxHash type_string = FoxHashStr("string");
 
-    FxHash decl_hash = decl->Name->GetHash();
+    FoxHash decl_hash = decl->Name->GetHash();
 
-    FxScriptValue::ValueType value_type = FxScriptValue::INT;
+    FoxValue::ValueType value_type = FoxValue::INT;
 
     switch (decl_hash) {
     case type_int:
-        value_type = FxScriptValue::INT;
+        value_type = FoxValue::INT;
         break;
     case type_string:
-        value_type = FxScriptValue::STRING;
+        value_type = FoxValue::STRING;
         break;
     };
 
-    FxScriptBytecodeVarHandle handle {
+    FoxBytecodeVarHandle handle {
         .HashedName = decl->Name->GetHash(),
         .Type = value_type, // Just int for now
         .Offset = (mStackOffset),
@@ -1875,7 +1875,7 @@ FxScriptBytecodeVarHandle* FxScriptBCEmitter::DoVarDeclare(FxAstVarDecl* decl, V
 
     VarHandles.Insert(handle);
 
-    FxScriptBytecodeVarHandle* inserted_handle = &VarHandles[VarHandles.Size() - 1];
+    FoxBytecodeVarHandle* inserted_handle = &VarHandles[VarHandles.Size() - 1];
 
     if (mode == DECLARE_NO_EMIT) {
         // Do not emit any values
@@ -1884,7 +1884,7 @@ FxScriptBytecodeVarHandle* FxScriptBCEmitter::DoVarDeclare(FxAstVarDecl* decl, V
 
 
     if (decl->Assignment) {
-        FxAstNode* rhs = decl->Assignment->Rhs;
+        FoxAstNode* rhs = decl->Assignment->Rhs;
 
         EmitRhs(rhs, RhsMode::RHS_DEFINE_IN_MEMORY, inserted_handle);
 
@@ -1902,19 +1902,19 @@ FxScriptBytecodeVarHandle* FxScriptBCEmitter::DoVarDeclare(FxAstVarDecl* decl, V
     return inserted_handle;
 }
 
-void FxScriptBCEmitter::DoActionCall(FxAstActionCall* call)
+void FoxBCEmitter::DoFunctionCall(FoxAstFunctionCall* call)
 {
     RETURN_IF_NO_NODE(call);
 
-    FxScriptBytecodeActionHandle* handle = FindActionHandle(call->HashedName);
+    FoxBytecodeFunctionHandle* handle = FindFunctionHandle(call->HashedName);
 
 
     std::vector<uint32> call_locations;
     call_locations.reserve(8);
 
     // Push all params to stack
-    for (FxAstNode* param : call->Params) {
-        // FxScriptRegister reg =
+    for (FoxAstNode* param : call->Params) {
+        // FoxBCRegister reg =
         if (param->NodeType == FX_AST_ACTIONCALL) {
             EmitRhs(param, RhsMode::RHS_DEFINE_IN_MEMORY, nullptr);
             call_locations.push_back(mStackOffset - 4);
@@ -1929,9 +1929,9 @@ void FxScriptBCEmitter::DoActionCall(FxAstActionCall* call)
     int call_location_index = 0;
 
     // Push all params to stack
-    for (FxAstNode* param : call->Params) {
+    for (FoxAstNode* param : call->Params) {
         if (param->NodeType == FX_AST_ACTIONCALL) {
-            FxScriptRegister temp_register = FindFreeRegister();
+            FoxBCRegister temp_register = FindFreeRegister();
 
             DoLoad(call_locations[call_location_index], temp_register);
             call_location_index++;
@@ -1965,7 +1965,7 @@ void FxScriptBCEmitter::DoActionCall(FxAstActionCall* call)
     EmitPop32(FX_REG_RA);
 }
 
-FxScriptBytecodeVarHandle* FxScriptBCEmitter::DefineAndFetchParam(FxAstNode* param_decl_node)
+FoxBytecodeVarHandle* FoxBCEmitter::DefineAndFetchParam(FoxAstNode* param_decl_node)
 {
     if (param_decl_node->NodeType != FX_AST_VARDECL) {
         printf("!!! param node type is not vardecl!\n");
@@ -1973,7 +1973,7 @@ FxScriptBytecodeVarHandle* FxScriptBCEmitter::DefineAndFetchParam(FxAstNode* par
     }
 
     // Emit variable without emitting pushes or pops
-    FxScriptBytecodeVarHandle* handle = DoVarDeclare(reinterpret_cast<FxAstVarDecl*>(param_decl_node), DECLARE_NO_EMIT);
+    FoxBytecodeVarHandle* handle = DoVarDeclare(reinterpret_cast<FoxAstVarDecl*>(param_decl_node), DECLARE_NO_EMIT);
 
     if (!handle) {
         printf("!!! could not define and fetch param!\n");
@@ -1987,57 +1987,57 @@ FxScriptBytecodeVarHandle* FxScriptBCEmitter::DefineAndFetchParam(FxAstNode* par
     return handle;
 }
 
-FxScriptBytecodeVarHandle* FxScriptBCEmitter::DefineReturnVar(FxAstVarDecl* decl)
+FoxBytecodeVarHandle* FoxBCEmitter::DefineReturnVar(FoxAstVarDecl* decl)
 {
     RETURN_VALUE_IF_NO_NODE(decl, nullptr);
 
     return DoVarDeclare(decl);
 }
 
-void FxScriptBCEmitter::EmitAction(FxAstActionDecl* action)
+void FoxBCEmitter::EmitFunction(FoxAstFunctionDecl* function)
 {
-    RETURN_IF_NO_NODE(action);
+    RETURN_IF_NO_NODE(function);
 
     ++mScopeIndex;
 
-    // Store the bytecode offset before the action is emitted
+    // Store the bytecode offset before the function is emitted
 
-    const size_t start_of_action = mBytecode.Size();
-    printf("Start of action %zu\n", start_of_action);
+    const size_t start_of_function = mBytecode.Size();
+    printf("Start of function %zu\n", start_of_function);
 
     // Emit the jump instruction, we will update the jump position after emitting all of the code inside the block
     EmitJumpRelative(0);
 
     // const uint32 initial_stack_offset = mStackOffset;
 
-    const size_t header_jump_start_index = start_of_action + sizeof(uint16);
+    const size_t header_jump_start_index = start_of_function + sizeof(uint16);
 
     size_t start_var_handle_count = VarHandles.Size();
 
     // Offset for the pushed return address
     mStackOffset += 4;
 
-    // Emit the body of the action
+    // Emit the body of the function
     {
-        for (FxAstNode* param_decl_node : action->Params->Statements) {
+        for (FoxAstNode* param_decl_node : function->Params->Statements) {
             DefineAndFetchParam(param_decl_node);
         }
 
-        FxScriptBytecodeVarHandle* return_var = DefineReturnVar(action->ReturnVar);
+        FoxBytecodeVarHandle* return_var = DefineReturnVar(function->ReturnVar);
 
-        EmitBlock(action->Block);
+        EmitBlock(function->Block);
 
-        // Check to see if there has been a return statement in the action
+        // Check to see if there has been a return statement in the function
         bool block_has_return = false;
 
-        for (FxAstNode* statement : action->Block->Statements) {
+        for (FoxAstNode* statement : function->Block->Statements) {
             if (statement->NodeType == FX_AST_RETURN) {
                 block_has_return = true;
                 break;
             }
         }
 
-        // There is no return statement in the action's block, add a return statement
+        // There is no return statement in the function's block, add a return statement
         if (!block_has_return) {
             EmitJumpReturnToCaller();
 
@@ -2050,40 +2050,40 @@ void FxScriptBCEmitter::EmitAction(FxAstActionDecl* action)
     // Return offset back to pre-call
     mStackOffset -= 4;
 
-    const size_t end_of_action = mBytecode.Size();
-    const uint16 distance_to_action = static_cast<uint16>(end_of_action - (start_of_action)-4);
+    const size_t end_of_function = mBytecode.Size();
+    const uint16 distance_to_function = static_cast<uint16>(end_of_function - (start_of_function)-4);
 
-    // Update the jump to the end of the action
-    mBytecode[header_jump_start_index] = static_cast<uint8>(distance_to_action >> 8);
-    mBytecode[header_jump_start_index + 1] = static_cast<uint8>((distance_to_action & 0xFF));
+    // Update the jump to the end of the function
+    mBytecode[header_jump_start_index] = static_cast<uint8>(distance_to_function >> 8);
+    mBytecode[header_jump_start_index + 1] = static_cast<uint8>((distance_to_function & 0xFF));
 
-    FxScriptBytecodeActionHandle action_handle {.HashedName = action->Name->GetHash(), .BytecodeIndex = static_cast<uint32>(start_of_action + 4)};
+    FoxBytecodeFunctionHandle function_handle {.HashedName = function->Name->GetHash(), .BytecodeIndex = static_cast<uint32>(start_of_function + 4)};
 
     const size_t number_of_scope_var_handles = VarHandles.Size() - start_var_handle_count;
     printf("Number of var handles to remove: %zu\n", number_of_scope_var_handles);
 
-    ActionHandles.push_back(action_handle);
+    FunctionHandles.push_back(function_handle);
 
     --mScopeIndex;
 
     // Delete the variables on the stack
     for (int i = 0; i < number_of_scope_var_handles; i++) {
-        FxScriptBytecodeVarHandle* var = VarHandles.RemoveLast();
+        FoxBytecodeVarHandle* var = VarHandles.RemoveLast();
         assert(var->SizeOnStack == 4);
         mStackOffset -= var->SizeOnStack;
     }
 }
 
-void FxScriptBCEmitter::EmitBlock(FxAstBlock* block)
+void FoxBCEmitter::EmitBlock(FoxAstBlock* block)
 {
     RETURN_IF_NO_NODE(block);
 
-    for (FxAstNode* node : block->Statements) {
+    for (FoxAstNode* node : block->Statements) {
         Emit(node);
     }
 }
 
-void FxScriptBCEmitter::PrintBytecode()
+void FoxBCEmitter::PrintBytecode()
 {
     const size_t size = mBytecode.Size();
     for (int i = 0; i < 25; i++) {
@@ -2112,7 +2112,7 @@ void FxScriptBCEmitter::PrintBytecode()
 // Bytecode Printer
 /////////////////////////////////////
 
-uint16 FxScriptBCPrinter::Read16()
+uint16 FoxBCPrinter::Read16()
 {
     uint8 lo = mBytecode[mBytecodeIndex++];
     uint8 hi = mBytecode[mBytecodeIndex++];
@@ -2120,7 +2120,7 @@ uint16 FxScriptBCPrinter::Read16()
     return ((static_cast<uint16>(lo) << 8) | hi);
 }
 
-uint32 FxScriptBCPrinter::Read32()
+uint32 FoxBCPrinter::Read32()
 {
     uint16 lo = Read16();
     uint16 hi = Read16();
@@ -2130,22 +2130,22 @@ uint32 FxScriptBCPrinter::Read32()
 
 #define BC_PRINT_OP(fmt_, ...) snprintf(s, 128, fmt_, ##__VA_ARGS__)
 
-void FxScriptBCPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxBCPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == OpSpecLoad_Int32) {
         int16 offset = Read16();
-        BC_PRINT_OP("load32 %d, %s", offset, FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(op_reg)));
+        BC_PRINT_OP("load32 %d, %s", offset, FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(op_reg)));
     }
     else if (op_spec == OpSpecLoad_AbsoluteInt32) {
         uint32 offset = Read32();
-        BC_PRINT_OP("load32a %u, %s", offset, FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(op_reg)));
+        BC_PRINT_OP("load32a %u, %s", offset, FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(op_reg)));
     }
 }
 
-void FxScriptBCPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
+void FoxBCPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecPush_Int32) {
         uint32 value = Read32();
@@ -2153,32 +2153,32 @@ void FxScriptBCPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == OpSpecPush_Reg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("push32r %s", FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(reg)));
+        BC_PRINT_OP("push32r %s", FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(reg)));
     }
 }
 
-void FxScriptBCPrinter::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxBCPrinter::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == OpSpecPush_Int32) {
-        BC_PRINT_OP("pop32 %s", FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(op_reg)));
+        BC_PRINT_OP("pop32 %s", FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(op_reg)));
     }
 }
 
-void FxScriptBCPrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
+void FoxBCPrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
 {
     uint8 a_reg = mBytecode[mBytecodeIndex++];
     uint8 b_reg = mBytecode[mBytecodeIndex++];
 
     if (op_spec == OpSpecArith_Add) {
-        BC_PRINT_OP("add32 %s, %s", FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(a_reg)),
-                    FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(b_reg)));
+        BC_PRINT_OP("add32 %s, %s", FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(a_reg)),
+                    FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(b_reg)));
     }
 }
 
-void FxScriptBCPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
+void FoxBCPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
 {
     // Save a imm32 into an offset in the stack
     if (op_spec == OpSpecSave_Int32) {
@@ -2193,7 +2193,7 @@ void FxScriptBCPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const int16 offset = Read16();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save32r %d, %s", offset, FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(reg)));
+        BC_PRINT_OP("save32r %d, %s", offset, FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(reg)));
     }
     else if (op_spec == OpSpecSave_AbsoluteInt32) {
         const uint32 offset = Read32();
@@ -2205,11 +2205,11 @@ void FxScriptBCPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const uint32 offset = Read32();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save32ar %u, %s", offset, FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(reg)));
+        BC_PRINT_OP("save32ar %u, %s", offset, FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(reg)));
     }
 }
 
-void FxScriptBCPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
+void FoxBCPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecJump_Relative) {
         uint16 offset = Read16();
@@ -2222,7 +2222,7 @@ void FxScriptBCPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == OpSpecJump_AbsoluteReg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("jmpar %s", FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(reg)));
+        BC_PRINT_OP("jmpar %s", FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(reg)));
     }
     else if (op_spec == OpSpecJump_CallAbsolute) {
         uint32 position = Read32();
@@ -2237,7 +2237,7 @@ void FxScriptBCPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptBCPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
+void FoxBCPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecData_String) {
         uint16 length = Read16();
@@ -2260,7 +2260,7 @@ void FxScriptBCPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptBCPrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
+void FoxBCPrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecType_Int) {
         BC_PRINT_OP("typeint");
@@ -2270,26 +2270,26 @@ void FxScriptBCPrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptBCPrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxBCPrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == OpSpecMove_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("move32 %s, %u\t", FxScriptBCEmitter::GetRegisterName(static_cast<FxScriptRegister>(op_reg)), value);
+        BC_PRINT_OP("move32 %s, %u\t", FoxBCEmitter::GetRegisterName(static_cast<FoxBCRegister>(op_reg)), value);
     }
 }
 
 
-void FxScriptBCPrinter::Print()
+void FoxBCPrinter::Print()
 {
     while (mBytecodeIndex < mBytecode.Size()) {
         PrintOp();
     }
 }
 
-void FxScriptBCPrinter::PrintOp()
+void FoxBCPrinter::PrintOp()
 {
     uint32 bc_index = mBytecodeIndex;
 
@@ -2340,7 +2340,7 @@ void FxScriptBCPrinter::PrintOp()
 // Bytecode VM
 ///////////////////////////////////////////
 
-void FxScriptVM::PrintRegisters()
+void FoxVM::PrintRegisters()
 {
     printf("\n=== Register Dump ===\n\n");
     printf("X0=%u\tX1=%u\tX2=%u\tX3=%u\n", Registers[FX_REG_X0], Registers[FX_REG_X1], Registers[FX_REG_X2], Registers[FX_REG_X3]);
@@ -2350,7 +2350,7 @@ void FxScriptVM::PrintRegisters()
     printf("\n=====================\n\n");
 }
 
-uint16 FxScriptVM::Read16()
+uint16 FoxVM::Read16()
 {
     uint8 lo = mBytecode[mPC++];
     uint8 hi = mBytecode[mPC++];
@@ -2358,7 +2358,7 @@ uint16 FxScriptVM::Read16()
     return ((static_cast<uint16>(lo) << 8) | hi);
 }
 
-uint32 FxScriptVM::Read32()
+uint32 FoxVM::Read32()
 {
     uint16 lo = Read16();
     uint16 hi = Read16();
@@ -2366,7 +2366,7 @@ uint32 FxScriptVM::Read32()
     return ((static_cast<uint32>(lo) << 16) | hi);
 }
 
-void FxScriptVM::Push16(uint16 value)
+void FoxVM::Push16(uint16 value)
 {
     uint16* dptr = reinterpret_cast<uint16*>(Stack + Registers[FX_REG_SP]);
     (*dptr) = value;
@@ -2374,7 +2374,7 @@ void FxScriptVM::Push16(uint16 value)
     Registers[FX_REG_SP] += sizeof(uint16);
 }
 
-void FxScriptVM::Push32(uint32 value)
+void FoxVM::Push32(uint32 value)
 {
     uint32* dptr = reinterpret_cast<uint32*>(Stack + Registers[FX_REG_SP]);
     (*dptr) = value;
@@ -2382,7 +2382,7 @@ void FxScriptVM::Push32(uint32 value)
     Registers[FX_REG_SP] += sizeof(uint32);
 }
 
-uint32 FxScriptVM::Pop32()
+uint32 FoxVM::Pop32()
 {
     if (Registers[FX_REG_SP] == 0) {
         printf("ERR\n");
@@ -2395,19 +2395,19 @@ uint32 FxScriptVM::Pop32()
 }
 
 
-FxScriptVMCallFrame& FxScriptVM::PushCallFrame()
+FoxVMCallFrame& FoxVM::PushCallFrame()
 {
     mIsInCallFrame = true;
 
-    FxScriptVMCallFrame& start_frame = mCallFrames[mCallFrameIndex++];
+    FoxVMCallFrame& start_frame = mCallFrames[mCallFrameIndex++];
     start_frame.StartStackIndex = Registers[FX_REG_SP];
 
     return start_frame;
 }
 
-void FxScriptVM::PopCallFrame()
+void FoxVM::PopCallFrame()
 {
-    FxScriptVMCallFrame* frame = GetCurrentCallFrame();
+    FoxVMCallFrame* frame = GetCurrentCallFrame();
     if (!frame) {
         FX_BREAKPOINT;
     }
@@ -2423,7 +2423,7 @@ void FxScriptVM::PopCallFrame()
     }
 }
 
-FxScriptVMCallFrame* FxScriptVM::GetCurrentCallFrame()
+FoxVMCallFrame* FoxVM::GetCurrentCallFrame()
 {
     if (!mIsInCallFrame || mCallFrameIndex < 1) {
         return nullptr;
@@ -2432,9 +2432,9 @@ FxScriptVMCallFrame* FxScriptVM::GetCurrentCallFrame()
     return &mCallFrames[mCallFrameIndex - 1];
 }
 
-FxScriptExternalFunc* FxScriptVM::FindExternalAction(FxHash hashed_name)
+FoxExternalFunc* FoxVM::FindExternalFunction(FoxHash hashed_name)
 {
-    for (FxScriptExternalFunc& func : mExternalFuncs) {
+    for (FoxExternalFunc& func : mExternalFuncs) {
         if (func.HashedName == hashed_name) {
             return &func;
         }
@@ -2442,7 +2442,7 @@ FxScriptExternalFunc* FxScriptVM::FindExternalAction(FxHash hashed_name)
     return nullptr;
 }
 
-void FxScriptVM::ExecuteOp()
+void FoxVM::ExecuteOp()
 {
     uint16 op_full = Read16();
 
@@ -2480,7 +2480,7 @@ void FxScriptVM::ExecuteOp()
     }
 }
 
-void FxScriptVM::DoLoad(uint8 op_base, uint8 op_spec_raw)
+void FoxVM::DoLoad(uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
@@ -2503,15 +2503,15 @@ void FxScriptVM::DoLoad(uint8 op_base, uint8 op_spec_raw)
     }
 }
 
-void FxScriptVM::DoPush(uint8 op_base, uint8 op_spec)
+void FoxVM::DoPush(uint8 op_base, uint8 op_spec)
 {
     if (mIsInParams) {
-        if (mCurrentType != FxScriptValue::NONETYPE) {
+        if (mCurrentType != FoxValue::NONETYPE) {
             mPushedTypes.Insert(mCurrentType);
-            mCurrentType = FxScriptValue::NONETYPE;
+            mCurrentType = FoxValue::NONETYPE;
         }
         else {
-            mPushedTypes.Insert(FxScriptValue::INT);
+            mPushedTypes.Insert(FoxValue::INT);
         }
     }
 
@@ -2525,7 +2525,7 @@ void FxScriptVM::DoPush(uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptVM::DoPop(uint8 op_base, uint8 op_spec_raw)
+void FoxVM::DoPop(uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
@@ -2541,7 +2541,7 @@ void FxScriptVM::DoPop(uint8 op_base, uint8 op_spec_raw)
     }
 }
 
-void FxScriptVM::DoArith(uint8 op_base, uint8 op_spec)
+void FoxVM::DoArith(uint8 op_base, uint8 op_spec)
 {
     uint8 a_reg = mBytecode[mPC++];
     uint8 b_reg = mBytecode[mPC++];
@@ -2551,7 +2551,7 @@ void FxScriptVM::DoArith(uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptVM::DoSave(uint8 op_base, uint8 op_spec)
+void FoxVM::DoSave(uint8 op_base, uint8 op_spec)
 {
     uint32 offset;
 
@@ -2587,7 +2587,7 @@ void FxScriptVM::DoSave(uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptVM::DoJump(uint8 op_base, uint8 op_spec)
+void FoxVM::DoJump(uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecJump_Relative) {
         uint16 offset = Read16();
@@ -2614,7 +2614,7 @@ void FxScriptVM::DoJump(uint8 op_base, uint8 op_spec)
 
         PushCallFrame();
 
-        // Jump to the action address
+        // Jump to the function address
         mPC = call_address;
     }
     else if (op_spec == OpSpecJump_ReturnToCaller) {
@@ -2632,14 +2632,14 @@ void FxScriptVM::DoJump(uint8 op_base, uint8 op_spec)
     else if (op_spec == OpSpecJump_CallExternal) {
         uint32 hashed_name = Read32();
 
-        FxScriptExternalFunc* external_func = FindExternalAction(hashed_name);
+        FoxExternalFunc* external_func = FindExternalFunction(hashed_name);
 
         if (!external_func) {
             printf("!!! Could not find external function in VM!\n");
             return;
         }
 
-        std::vector<FxScriptValue> params;
+        std::vector<FoxValue> params;
         params.reserve(external_func->ParameterTypes.size());
 
         uint32 num_params = mPushedTypes.Size();
@@ -2647,16 +2647,16 @@ void FxScriptVM::DoJump(uint8 op_base, uint8 op_spec)
         printf("Num Params: %u\n", num_params);
 
         for (int i = 0; i < num_params; i++) {
-            FxScriptValue::ValueType param_type = mPushedTypes.GetLast();
+            FoxValue::ValueType param_type = mPushedTypes.GetLast();
 
-            FxScriptValue value;
+            FoxValue value;
             value.Type = param_type;
 
-            if (param_type == FxScriptValue::INT) {
+            if (param_type == FoxValue::INT) {
                 value.ValueInt = Pop32();
                 value.Type = param_type;
             }
-            else if (param_type == FxScriptValue::STRING) {
+            else if (param_type == FoxValue::STRING) {
                 uint32 string_location = Pop32();
                 uint8* str_base_ptr = &mBytecode[string_location];
                 // uint16 str_length = *((uint16*)str_base_ptr);
@@ -2675,12 +2675,12 @@ void FxScriptVM::DoJump(uint8 op_base, uint8 op_spec)
         mPushedTypes.Clear();
         mIsInParams = false;
 
-        FxScriptValue return_value {};
+        FoxValue return_value {};
         external_func->Function(this, params, &return_value);
     }
 }
 
-void FxScriptVM::DoData(uint8 op_base, uint8 op_spec)
+void FoxVM::DoData(uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecData_String) {
         uint16 length = Read16();
@@ -2689,26 +2689,26 @@ void FxScriptVM::DoData(uint8 op_base, uint8 op_spec)
     else if (op_spec == OpSpecData_ParamsStart) {
         mIsInParams = true;
 
-        // Push the current return address pointer. This is so nested action calls can correctly navigate back
+        // Push the current return address pointer. This is so nested function calls can correctly navigate back
         // to the caller.
         // Push32(Registers[FX_REG_RA]);
     }
 }
 
-void FxScriptVM::DoType(uint8 op_base, uint8 op_spec)
+void FoxVM::DoType(uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecType_Int) {
-        mCurrentType = FxScriptValue::INT;
+        mCurrentType = FoxValue::INT;
     }
     else if (op_spec == OpSpecType_String) {
-        mCurrentType = FxScriptValue::STRING;
+        mCurrentType = FoxValue::STRING;
     }
 }
 
-void FxScriptVM::DoMove(uint8 op_base, uint8 op_spec_raw)
+void FoxVM::DoMove(uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
-    FxScriptRegister op_reg = static_cast<FxScriptRegister>(op_spec_raw & 0x0F);
+    FoxBCRegister op_reg = static_cast<FoxBCRegister>(op_spec_raw & 0x0F);
 
     if (op_spec == OpSpecMove_Int32) {
         int32 value = Read32();
@@ -2721,7 +2721,7 @@ void FxScriptVM::DoMove(uint8 op_base, uint8 op_spec_raw)
 // Script Bytecode to x86 Transpiler
 //////////////////////////////////////////////////
 
-uint16 FxScriptTranspilerX86::Read16()
+uint16 FoxTranspilerX86::Read16()
 {
     uint8 lo = mBytecode[mBytecodeIndex++];
     uint8 hi = mBytecode[mBytecodeIndex++];
@@ -2729,7 +2729,7 @@ uint16 FxScriptTranspilerX86::Read16()
     return ((static_cast<uint16>(lo) << 8) | hi);
 }
 
-uint32 FxScriptTranspilerX86::Read32()
+uint32 FoxTranspilerX86::Read32()
 {
     uint16 lo = Read16();
     uint16 hi = Read16();
@@ -2737,7 +2737,7 @@ uint32 FxScriptTranspilerX86::Read32()
     return ((static_cast<uint32>(lo) << 16) | hi);
 }
 
-static const char* GetX86Register(FxScriptRegister reg)
+static const char* GetX86Register(FoxBCRegister reg)
 {
     switch (reg) {
     case FX_REG_X0:
@@ -2761,7 +2761,7 @@ static const char* GetX86Register(FxScriptRegister reg)
 
 // #define BC_PRINT_OP(fmt_, ...) snprintf(s, 128, fmt_, ##__VA_ARGS__)
 
-void FxScriptTranspilerX86::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxTranspilerX86::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
@@ -2770,16 +2770,16 @@ void FxScriptTranspilerX86::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
         int16 offset = Read16();
         // load32 [off32] [%r32]
         offset += 8;
-        StrOut("mov %s, [ebp %c %d]", GetX86Register(static_cast<FxScriptRegister>(op_reg)), (offset <= 0 ? '+' : '-'), abs(offset));
+        StrOut("mov %s, [ebp %c %d]", GetX86Register(static_cast<FoxBCRegister>(op_reg)), (offset <= 0 ? '+' : '-'), abs(offset));
     }
     else if (op_spec == OpSpecLoad_AbsoluteInt32) {
         uint32 offset = Read32();
-        // StrOut("load32a %u, %s", offset, GetX86Register(static_cast<FxScriptRegister>(op_reg)));
-        StrOut("mov %s, [esi + %u]", GetX86Register(static_cast<FxScriptRegister>(op_reg)), offset);
+        // StrOut("load32a %u, %s", offset, GetX86Register(static_cast<FoxBCRegister>(op_reg)));
+        StrOut("mov %s, [esi + %u]", GetX86Register(static_cast<FoxBCRegister>(op_reg)), offset);
     }
 }
 
-void FxScriptTranspilerX86::DoPush(char* s, uint8 op_base, uint8 op_spec)
+void FoxTranspilerX86::DoPush(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecPush_Int32) {
         uint32 value = Read32();
@@ -2789,37 +2789,37 @@ void FxScriptTranspilerX86::DoPush(char* s, uint8 op_base, uint8 op_spec)
     else if (op_spec == OpSpecPush_Reg32) {
         uint16 reg = Read16();
         // push32r [%reg32]
-        StrOut("push %s", GetX86Register(static_cast<FxScriptRegister>(reg)));
+        StrOut("push %s", GetX86Register(static_cast<FoxBCRegister>(reg)));
     }
 
-    if (mIsInAction) {
-        mSizePushedInAction += 4;
+    if (mIsInFunction) {
+        mSizePushedInFunction += 4;
     }
 }
 
-void FxScriptTranspilerX86::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxTranspilerX86::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
-    if (op_spec == OpSpecPush_Int32) {
+    if (op_spec == OpSpecPop_Int32) {
         // pop32 [%reg32]
-        StrOut("pop %s", GetX86Register(static_cast<FxScriptRegister>(op_reg)));
+        StrOut("pop %s", GetX86Register(static_cast<FoxBCRegister>(op_reg)));
     }
 }
 
-void FxScriptTranspilerX86::DoArith(char* s, uint8 op_base, uint8 op_spec)
+void FoxTranspilerX86::DoArith(char* s, uint8 op_base, uint8 op_spec)
 {
     uint8 a_reg = mBytecode[mBytecodeIndex++];
     uint8 b_reg = mBytecode[mBytecodeIndex++];
 
     if (op_spec == OpSpecArith_Add) {
         // add32 [%reg32] [%reg32]
-        StrOut("add %s, %s", GetX86Register(static_cast<FxScriptRegister>(a_reg)), GetX86Register(static_cast<FxScriptRegister>(b_reg)));
+        StrOut("add %s, %s", GetX86Register(static_cast<FoxBCRegister>(a_reg)), GetX86Register(static_cast<FoxBCRegister>(b_reg)));
     }
 }
 
-void FxScriptTranspilerX86::DoSave(char* s, uint8 op_base, uint8 op_spec)
+void FoxTranspilerX86::DoSave(char* s, uint8 op_base, uint8 op_spec)
 {
     // Save a imm32 into an offset in the stack
     if (op_spec == OpSpecSave_Int32) {
@@ -2837,8 +2837,8 @@ void FxScriptTranspilerX86::DoSave(char* s, uint8 op_base, uint8 op_spec)
 
         offset += 8;
 
-        StrOut("mov [ebp %c %d], %s", (offset <= 0 ? '+' : '-'), abs(offset), GetX86Register(static_cast<FxScriptRegister>(reg)));
-        // BC_PRINT_OP("save32r %d, %s", offset, GetX86Register(static_cast<FxScriptRegister>(reg)));
+        StrOut("mov [ebp %c %d], %s", (offset <= 0 ? '+' : '-'), abs(offset), GetX86Register(static_cast<FoxBCRegister>(reg)));
+        // BC_PRINT_OP("save32r %d, %s", offset, GetX86Register(static_cast<FoxBCRegister>(reg)));
     }
     else if (op_spec == OpSpecSave_AbsoluteInt32) {
         const uint32 offset = Read32();
@@ -2851,17 +2851,17 @@ void FxScriptTranspilerX86::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const uint32 offset = Read32();
         uint16 reg = Read16();
 
-        // StrOut("save32ar %u, %s", offset, GetX86Register(static_cast<FxScriptRegister>(reg)));
-        StrOut("mov [esi %c %d], %s", (offset <= 0 ? '+' : '-'), offset, GetX86Register(static_cast<FxScriptRegister>(reg)));
+        // StrOut("save32ar %u, %s", offset, GetX86Register(static_cast<FoxBCRegister>(reg)));
+        StrOut("mov [esi %c %d], %s", (offset <= 0 ? '+' : '-'), offset, GetX86Register(static_cast<FoxBCRegister>(reg)));
     }
 }
 
-void FxScriptTranspilerX86::DoJump(char* s, uint8 op_base, uint8 op_spec)
+void FoxTranspilerX86::DoJump(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecJump_Relative) {
         uint16 offset = Read16();
 
-        mIsInAction = true;
+        mIsInFunction = true;
 
         StrOut("jmp _A_%u", mBytecodeIndex + offset);
 
@@ -2884,7 +2884,7 @@ void FxScriptTranspilerX86::DoJump(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == OpSpecJump_AbsoluteReg32) {
         uint16 reg = Read16();
-        StrOut("jmpar %s", GetX86Register(static_cast<FxScriptRegister>(reg)));
+        StrOut("jmpar %s", GetX86Register(static_cast<FoxBCRegister>(reg)));
     }
     else if (op_spec == OpSpecJump_CallAbsolute) {
         uint32 position = Read32();
@@ -2892,9 +2892,9 @@ void FxScriptTranspilerX86::DoJump(char* s, uint8 op_base, uint8 op_spec)
         StrOut("call _L_%u", position);
     }
     else if (op_spec == OpSpecJump_ReturnToCaller) {
-        StrOut("add esp, %u", mSizePushedInAction);
-        mSizePushedInAction = 0;
-        mIsInAction = false;
+        StrOut("add esp, %u", mSizePushedInFunction);
+        mSizePushedInFunction = 0;
+        mIsInFunction = false;
 
         StrOut("");
         StrOut("push esi ; push return address");
@@ -2914,7 +2914,7 @@ void FxScriptTranspilerX86::DoJump(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptTranspilerX86::DoData(char* s, uint8 op_base, uint8 op_spec)
+void FoxTranspilerX86::DoData(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecData_String) {
         uint16 length = Read16();
@@ -2938,7 +2938,7 @@ void FxScriptTranspilerX86::DoData(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptTranspilerX86::DoType(char* s, uint8 op_base, uint8 op_spec)
+void FoxTranspilerX86::DoType(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecType_Int) {
         // BC_PRINT_OP("typeint");
@@ -2948,20 +2948,20 @@ void FxScriptTranspilerX86::DoType(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptTranspilerX86::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxTranspilerX86::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
-    FxScriptRegister op_reg = static_cast<FxScriptRegister>(op_spec_raw & 0x0F);
+    FoxBCRegister op_reg = static_cast<FoxBCRegister>(op_spec_raw & 0x0F);
 
     if (op_spec == OpSpecMove_Int32) {
         int32 value = Read32();
-        // StrOut("move32 %s, %u", FxScriptBCEmitter::GetRegisterName(op_reg), value);
+        // StrOut("move32 %s, %u", FoxBCEmitter::GetRegisterName(op_reg), value);
         StrOut("mov %s, %d", GetX86Register(op_reg), value);
     }
 }
 
 
-void FxScriptTranspilerX86::Print()
+void FoxTranspilerX86::Print()
 {
     // Print header
     StrOut("section .text");
@@ -2982,7 +2982,7 @@ void FxScriptTranspilerX86::Print()
 
 #include <cstdarg>
 
-void FxScriptTranspilerX86::StrOut(const char* fmt, ...)
+void FoxTranspilerX86::StrOut(const char* fmt, ...)
 {
     for (int i = 0; i < mTextIndent; i++) {
         putchar('\t');
@@ -2996,7 +2996,7 @@ void FxScriptTranspilerX86::StrOut(const char* fmt, ...)
     puts("");
 }
 
-void FxScriptTranspilerX86::PrintOp()
+void FoxTranspilerX86::PrintOp()
 {
     // uint32 bc_index = mBytecodeIndex;
 
@@ -3040,11 +3040,13 @@ void FxScriptTranspilerX86::PrintOp()
 }
 
 
+///////////////////////////////////////////////
+// IR Asm Emitter
+///////////////////////////////////////////////
+
 #pragma region IrEmitter
 
-#include "FxScriptBytecode.hpp"
-
-void FxScriptIREmitter::BeginEmitting(FxAstNode* node)
+void FoxIREmitter::BeginEmitting(FoxAstNode* node)
 {
     mStackSize = 1024;
 
@@ -3071,34 +3073,39 @@ void FxScriptIREmitter::BeginEmitting(FxAstNode* node)
         return (value_);                                                                                                                             \
     }
 
-void FxScriptIREmitter::Emit(FxAstNode* node)
+void FoxIREmitter::Emit(FoxAstNode* node)
 {
     RETURN_IF_NO_NODE(node);
 
     if (node->NodeType == FX_AST_BLOCK) {
-        return EmitBlock(reinterpret_cast<FxAstBlock*>(node));
+        return EmitBlock(reinterpret_cast<FoxAstBlock*>(node));
     }
     else if (node->NodeType == FX_AST_ACTIONDECL) {
-        return EmitAction(reinterpret_cast<FxAstActionDecl*>(node));
+        return EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(node));
     }
     else if (node->NodeType == FX_AST_ACTIONCALL) {
-        return DoActionCall(reinterpret_cast<FxAstActionCall*>(node));
+        return DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(node));
     }
     else if (node->NodeType == FX_AST_ASSIGN) {
-        return EmitAssign(reinterpret_cast<FxAstAssign*>(node));
+        return EmitAssign(reinterpret_cast<FoxAstAssign*>(node));
     }
     else if (node->NodeType == FX_AST_VARDECL) {
-        DoVarDeclare(reinterpret_cast<FxAstVarDecl*>(node));
+        DoVarDeclare(reinterpret_cast<FoxAstVarDecl*>(node));
         return;
     }
     else if (node->NodeType == FX_AST_RETURN) {
-        constexpr FxHash return_val_hash = FxHashStr(FX_SCRIPT_VAR_RETURN_VAL);
+        constexpr FoxHash return_val_hash = FoxHashStr(FX_SCRIPT_VAR_RETURN_VAL);
 
-        FxScriptBytecodeVarHandle* return_var = FindVarHandle(return_val_hash);
+        FoxBytecodeVarHandle* return_var = FindVarHandle(return_val_hash);
+
+        FoxIRRegister result_register = FindFreeReg32();
+        MARK_REGISTER_USED(result_register);
 
         if (return_var) {
-            DoLoad(return_var->Offset, FX_REG_XR);
+            DoLoad(return_var->Offset, result_register);
         }
+
+        MARK_REGISTER_FREE(result_register);
 
         EmitJumpReturnToCaller();
 
@@ -3106,9 +3113,9 @@ void FxScriptIREmitter::Emit(FxAstNode* node)
     }
 }
 
-FxScriptBytecodeVarHandle* FxScriptIREmitter::FindVarHandle(FxHash hashed_name)
+FoxBytecodeVarHandle* FoxIREmitter::FindVarHandle(FoxHash hashed_name)
 {
-    for (FxScriptBytecodeVarHandle& handle : VarHandles) {
+    for (FoxBytecodeVarHandle& handle : VarHandles) {
         if (handle.HashedName == hashed_name) {
             return &handle;
         }
@@ -3116,9 +3123,9 @@ FxScriptBytecodeVarHandle* FxScriptIREmitter::FindVarHandle(FxHash hashed_name)
     return nullptr;
 }
 
-FxScriptBytecodeActionHandle* FxScriptIREmitter::FindActionHandle(FxHash hashed_name)
+FoxBytecodeFunctionHandle* FoxIREmitter::FindFunctionHandle(FoxHash hashed_name)
 {
-    for (FxScriptBytecodeActionHandle& handle : ActionHandles) {
+    for (FoxBytecodeFunctionHandle& handle : FunctionHandles) {
         if (handle.HashedName == hashed_name) {
             return &handle;
         }
@@ -3127,44 +3134,52 @@ FxScriptBytecodeActionHandle* FxScriptIREmitter::FindActionHandle(FxHash hashed_
 }
 
 
-FxScriptRegister FxScriptIREmitter::FindFreeRegister()
+FoxIRRegister FoxIREmitter::FindFreeReg32()
 {
-    uint16 gp_r = 0x01;
+    for (int register_index = FX_IR_GW0; register_index <= FX_IR_GW3; register_index++) {
+        uint32 gp_r = (1 << register_index);
 
-    const uint16 num_gp_regs = FX_REG_X3;
-
-    for (int i = 0; i < num_gp_regs; i++) {
         if (!(mRegsInUse & gp_r)) {
-            // We are starting on 0x01, so register index should be N + 1
-            const int register_index = i + 1;
-
-            return static_cast<FxScriptRegister>(register_index);
+            return static_cast<FoxIRRegister>(register_index);
         }
-
-        gp_r <<= 1;
     }
 
-    return FxScriptRegister::FX_REG_NONE;
+    return FX_IR_GW3;
 }
 
-const char* FxScriptIREmitter::GetRegisterName(FxScriptRegister reg)
+FoxIRRegister FoxIREmitter::FindFreeReg64()
+{
+    for (int register_index = FX_IR_GX0; register_index <= FX_IR_GX3; register_index++) {
+        uint32 gp_r = (1 << register_index);
+
+        if (!(mRegsInUse & gp_r)) {
+            return static_cast<FoxIRRegister>(register_index);
+        }
+    }
+
+    return FX_IR_GX3;
+}
+
+const char* FoxIREmitter::GetRegisterName(FoxIRRegister reg)
 {
     switch (reg) {
-    case FX_REG_NONE:
-        return "NONE";
-    case FX_REG_X0:
-        return "X0";
-    case FX_REG_X1:
-        return "X1";
-    case FX_REG_X2:
-        return "X2";
-    case FX_REG_X3:
-        return "X3";
-    case FX_REG_RA:
-        return "RA";
-    case FX_REG_XR:
-        return "XR";
-    case FX_REG_SP:
+    case FX_IR_GW0:
+        return "GW0";
+    case FX_IR_GW1:
+        return "GW1";
+    case FX_IR_GW2:
+        return "GW2";
+    case FX_IR_GW3:
+        return "GW3";
+    case FX_IR_GX0:
+        return "GX0";
+    case FX_IR_GX1:
+        return "GX1";
+    case FX_IR_GX2:
+        return "GX2";
+    case FX_IR_GX3:
+        return "GX3";
+    case FX_IR_SP:
         return "SP";
     default:;
     };
@@ -3172,73 +3187,25 @@ const char* FxScriptIREmitter::GetRegisterName(FxScriptRegister reg)
     return "NONE";
 }
 
-FxScriptRegister FxScriptIREmitter::RegFlagToReg(FxScriptRegisterFlag reg_flag)
-{
-    switch (reg_flag) {
-    case FX_REGFLAG_NONE:
-        return FX_REG_NONE;
-    case FX_REGFLAG_X0:
-        return FX_REG_X0;
-    case FX_REGFLAG_X1:
-        return FX_REG_X1;
-    case FX_REGFLAG_X2:
-        return FX_REG_X2;
-    case FX_REGFLAG_X3:
-        return FX_REG_X3;
-    case FX_REGFLAG_RA:
-        return FX_REG_RA;
-    case FX_REGFLAG_XR:
-        return FX_REG_XR;
-    }
-
-    return FX_REG_NONE;
-}
-
-FxScriptRegisterFlag FxScriptIREmitter::RegToRegFlag(FxScriptRegister reg)
-{
-    switch (reg) {
-    case FX_REG_NONE:
-        return FX_REGFLAG_NONE;
-    case FX_REG_X0:
-        return FX_REGFLAG_X0;
-    case FX_REG_X1:
-        return FX_REGFLAG_X1;
-    case FX_REG_X2:
-        return FX_REGFLAG_X2;
-    case FX_REG_X3:
-        return FX_REGFLAG_X3;
-    case FX_REG_RA:
-        return FX_REGFLAG_RA;
-    case FX_REG_XR:
-        return FX_REGFLAG_XR;
-    case FX_REG_SP:
-        return FX_REGFLAG_NONE;
-    default:;
-    }
-
-    return FX_REGFLAG_NONE;
-}
-
-
-void FxScriptIREmitter::Write16(uint16 value)
+void FoxIREmitter::Write16(uint16 value)
 {
     mBytecode.Insert(static_cast<uint8>(value >> 8));
     mBytecode.Insert(static_cast<uint8>(value));
 }
 
-void FxScriptIREmitter::Write32(uint32 value)
+void FoxIREmitter::Write32(uint32 value)
 {
     Write16(static_cast<uint16>(value >> 16));
     Write16(static_cast<uint16>(value));
 }
 
-void FxScriptIREmitter::WriteOp(uint8 op_base, uint8 op_spec)
+void FoxIREmitter::WriteOp(uint8 op_base, uint8 op_spec)
 {
     mBytecode.Insert(op_base);
     mBytecode.Insert(op_spec);
 }
 
-using IRRhsMode = FxScriptIREmitter::RhsMode;
+using IRRhsMode = FoxIREmitter::RhsMode;
 
 #define MARK_REGISTER_USED(regn_)                                                                                                                    \
     {                                                                                                                                                \
@@ -3249,20 +3216,19 @@ using IRRhsMode = FxScriptIREmitter::RhsMode;
         MarkRegisterFree(regn_);                                                                                                                     \
     }
 
-void FxScriptIREmitter::MarkRegisterUsed(FxScriptRegister reg)
+void FoxIREmitter::MarkRegisterUsed(FoxIRRegister reg)
 {
-    FxScriptRegisterFlag rflag = RegToRegFlag(reg);
-    mRegsInUse = static_cast<FxScriptRegisterFlag>(uint16(mRegsInUse) | uint16(rflag));
+    uint16 register_flag = (1 << reg);
+    mRegsInUse = static_cast<FoxRegisterFlag>(uint16(mRegsInUse) | register_flag);
 }
 
-void FxScriptIREmitter::MarkRegisterFree(FxScriptRegister reg)
+void FoxIREmitter::MarkRegisterFree(FoxIRRegister reg)
 {
-    FxScriptRegisterFlag rflag = RegToRegFlag(reg);
-
-    mRegsInUse = static_cast<FxScriptRegisterFlag>(uint16(mRegsInUse) & (~uint16(rflag)));
+    uint16 register_flag = (1 << reg);
+    mRegsInUse = static_cast<FoxRegisterFlag>(uint16(mRegsInUse) & (~register_flag));
 }
 
-void FxScriptIREmitter::EmitSave32(int16 offset, uint32 value)
+void FoxIREmitter::EmitSave32(int16 offset, uint32 value)
 {
     // SAVE32 [i16 offset] [i32]
     WriteOp(IrBase_Save, IrSpecSave_Int32);
@@ -3271,7 +3237,7 @@ void FxScriptIREmitter::EmitSave32(int16 offset, uint32 value)
     Write32(value);
 }
 
-void FxScriptIREmitter::EmitSaveReg32(int16 offset, FxScriptRegister reg)
+void FoxIREmitter::EmitSaveReg32(int16 offset, FoxIRRegister reg)
 {
     // SAVE32r [i16 offset] [%r32]
     WriteOp(IrBase_Save, IrSpecSave_Reg32);
@@ -3281,7 +3247,7 @@ void FxScriptIREmitter::EmitSaveReg32(int16 offset, FxScriptRegister reg)
 }
 
 
-void FxScriptIREmitter::EmitSaveAbsolute32(uint32 position, uint32 value)
+void FoxIREmitter::EmitSaveAbsolute32(uint32 position, uint32 value)
 {
     // SAVE32a [i32 offset] [i32]
     WriteOp(IrBase_Save, IrSpecSave_AbsoluteInt32);
@@ -3290,7 +3256,7 @@ void FxScriptIREmitter::EmitSaveAbsolute32(uint32 position, uint32 value)
     Write32(value);
 }
 
-void FxScriptIREmitter::EmitSaveAbsoluteReg32(uint32 position, FxScriptRegister reg)
+void FoxIREmitter::EmitSaveAbsoluteReg32(uint32 position, FoxIRRegister reg)
 {
     // SAVE32r [i32 offset] [%r32]
     WriteOp(IrBase_Save, IrSpecSave_AbsoluteReg32);
@@ -3299,7 +3265,7 @@ void FxScriptIREmitter::EmitSaveAbsoluteReg32(uint32 position, FxScriptRegister 
     Write16(reg);
 }
 
-void FxScriptIREmitter::EmitPush32(uint32 value)
+void FoxIREmitter::EmitPush32(uint32 value)
 {
     // PUSH32 [i32]
     WriteOp(IrBase_Push, IrSpecPush_Int32);
@@ -3308,7 +3274,7 @@ void FxScriptIREmitter::EmitPush32(uint32 value)
     mStackOffset += 4;
 }
 
-void FxScriptIREmitter::EmitPush32r(FxScriptRegister reg)
+void FoxIREmitter::EmitPush32r(FoxIRRegister reg)
 {
     // PUSH32r [%r32]
     WriteOp(IrBase_Push, IrSpecPush_Reg32);
@@ -3317,8 +3283,18 @@ void FxScriptIREmitter::EmitPush32r(FxScriptRegister reg)
     mStackOffset += 4;
 }
 
+void FoxIREmitter::EmitStackAlloc(uint16 size)
+{
+    // SALLOC [u16]
 
-void FxScriptIREmitter::EmitPop32(FxScriptRegister output_reg)
+    WriteOp(IrBase_Push, IrSpecPush_StackAlloc);
+    Write16(size);
+
+    mStackOffset += size;
+}
+
+
+void FoxIREmitter::EmitPop32(FoxIRRegister output_reg)
 {
     // POP32 [%r32]
     WriteOp(IrBase_Pop, (IrSpecPop_Int32 << 4) | (output_reg & 0x0F));
@@ -3326,80 +3302,101 @@ void FxScriptIREmitter::EmitPop32(FxScriptRegister output_reg)
     mStackOffset -= 4;
 }
 
-void FxScriptIREmitter::EmitLoad32(int offset, FxScriptRegister output_reg)
+void FoxIREmitter::EmitLoad32(int offset, FoxIRRegister output_reg)
 {
     // LOAD [i16] [%r32]
     WriteOp(IrBase_Load, (IrSpecLoad_Int32 << 4) | (output_reg & 0x0F));
     Write16(static_cast<uint16>(offset));
 }
 
-void FxScriptIREmitter::EmitLoadAbsolute32(uint32 position, FxScriptRegister output_reg)
+void FoxIREmitter::EmitLoadAbsolute32(uint32 position, FoxIRRegister output_reg)
 {
     // LOADA [i32] [%r32]
     WriteOp(IrBase_Load, (IrSpecLoad_AbsoluteInt32 << 4) | (output_reg & 0x0F));
     Write32(position);
 }
 
-void FxScriptIREmitter::EmitJumpRelative(uint16 offset)
+void FoxIREmitter::EmitJumpRelative(uint16 offset)
 {
     WriteOp(IrBase_Jump, IrSpecJump_Relative);
     Write16(offset);
 }
 
-void FxScriptIREmitter::EmitJumpAbsolute(uint32 position)
+void FoxIREmitter::EmitJumpAbsolute(uint32 position)
 {
     WriteOp(IrBase_Jump, IrSpecJump_Absolute);
     Write32(position);
 }
 
 
-void FxScriptIREmitter::EmitJumpAbsoluteReg32(FxScriptRegister reg)
+void FoxIREmitter::EmitJumpAbsoluteReg32(FoxIRRegister reg)
 {
     WriteOp(IrBase_Jump, IrSpecJump_AbsoluteReg32);
     Write16(reg);
 }
 
-void FxScriptIREmitter::EmitJumpCallAbsolute(uint32 position)
+void FoxIREmitter::EmitJumpCallAbsolute(uint32 position)
 {
     WriteOp(IrBase_Jump, IrSpecJump_CallAbsolute);
     Write32(position);
 }
 
 
-void FxScriptIREmitter::EmitJumpCallExternal(FxHash hashed_name)
+void FoxIREmitter::EmitJumpCallExternal(FoxHash hashed_name)
 {
     WriteOp(IrBase_Jump, IrSpecJump_CallExternal);
     Write32(hashed_name);
 }
 
-void FxScriptIREmitter::EmitJumpReturnToCaller()
+void FoxIREmitter::EmitJumpReturnToCaller()
 {
     WriteOp(IrBase_Jump, IrSpecJump_ReturnToCaller);
 }
 
-void FxScriptIREmitter::EmitMoveInt32(FxScriptRegister reg, uint32 value)
+void FoxIREmitter::EmitMoveInt32(FoxIRRegister reg, uint32 value)
 {
     WriteOp(IrBase_Move, (IrSpecMove_Int32 << 4) | (reg & 0x0F));
     Write32(value);
 }
 
-void FxScriptIREmitter::EmitParamsStart()
+void FoxIREmitter::EmitVariableSetInt32(uint16 var_index, int32 value)
 {
-    WriteOp(IrBase_Data, IrSpecData_ParamsStart);
+    WriteOp(IrBase_Variable, IrSpecVariable_Set_Int32);
+    Write16(var_index);
+    Write32(value);
 }
 
-void FxScriptIREmitter::EmitType(FxScriptValue::ValueType type)
+void FoxIREmitter::EmitVariableSetReg32(uint16 var_index, FoxIRRegister reg)
+{
+    WriteOp(IrBase_Variable, IrSpecVariable_Set_Reg32);
+    Write16(var_index);
+    Write16(reg);
+}
+
+void FoxIREmitter::EmitVariableGetInt32(uint16 var_index, FoxIRRegister dest_reg)
+{
+    WriteOp(IrBase_Variable, IrSpecVariable_Get_Int32);
+    Write16(var_index);
+    Write16(dest_reg);
+}
+
+void FoxIREmitter::EmitParamsStart()
+{
+    WriteOp(IrBase_Marker, IrSpecMarker_ParamsBegin);
+}
+
+void FoxIREmitter::EmitType(FoxValue::ValueType type)
 {
     IrSpecType op_type = IrSpecType_Int;
 
-    if (type == FxScriptValue::STRING) {
+    if (type == FoxValue::STRING) {
         op_type = IrSpecType_String;
     }
 
     WriteOp(IrBase_Type, op_type);
 }
 
-uint32 FxScriptIREmitter::EmitDataString(char* str, uint16 length)
+uint32 FoxIREmitter::EmitDataString(char* str, uint16 length)
 {
     WriteOp(IrBase_Data, IrSpecData_String);
 
@@ -3429,20 +3426,20 @@ uint32 FxScriptIREmitter::EmitDataString(char* str, uint16 length)
 }
 
 
-FxScriptRegister FxScriptIREmitter::EmitBinop(FxAstBinop* binop, FxScriptBytecodeVarHandle* handle)
+FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle)
 {
     bool will_preserve_lhs = false;
     // Load the A and B values into the registers
-    FxScriptRegister a_reg = EmitRhs(binop->Left, RhsMode::RHS_FETCH_TO_REGISTER, handle);
+    FoxIRRegister a_reg = EmitRhs(binop->Left, RhsMode::RHS_FETCH_TO_REGISTER, handle);
 
-    // Since there is a chance that this register will be clobbered (by binop, action call, etc), we will
+    // Since there is a chance that this register will be clobbered (by binop, function call, etc), we will
     // push the value of the register here and return it after processing the RHS
     if (binop->Right->NodeType != FX_AST_LITERAL) {
         will_preserve_lhs = true;
         EmitPush32r(a_reg);
     }
 
-    FxScriptRegister b_reg = EmitRhs(binop->Right, RhsMode::RHS_FETCH_TO_REGISTER, handle);
+    FoxIRRegister b_reg = EmitRhs(binop->Right, RhsMode::RHS_FETCH_TO_REGISTER, handle);
 
     // Retrieve the previous LHS
     if (will_preserve_lhs) {
@@ -3457,15 +3454,15 @@ FxScriptRegister FxScriptIREmitter::EmitBinop(FxAstBinop* binop, FxScriptBytecod
     }
 
     // We no longer need the lhs or rhs registers, free em
-    MARK_REGISTER_FREE(a_reg);
+    // MARK_REGISTER_FREE(a_reg);
     MARK_REGISTER_FREE(b_reg);
 
-    return FX_REG_XR;
+    return a_reg;
 }
 
-FxScriptRegister FxScriptIREmitter::EmitVarFetch(FxAstVarRef* ref, RhsMode mode)
+FoxIRRegister FoxIREmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
 {
-    FxScriptBytecodeVarHandle* var_handle = FindVarHandle(ref->Name->GetHash());
+    FoxBytecodeVarHandle* var_handle = FindVarHandle(ref->Name->GetHash());
 
     bool force_absolute_load = false;
 
@@ -3477,14 +3474,15 @@ FxScriptRegister FxScriptIREmitter::EmitVarFetch(FxAstVarRef* ref, RhsMode mode)
 
     if (!var_handle) {
         printf("Could not find var handle!");
-        return FX_REG_NONE;
+        return FX_IR_GW0;
     }
 
-    FxScriptRegister reg = FindFreeRegister();
+    FoxIRRegister reg = FindFreeReg32();
 
     MARK_REGISTER_USED(reg);
 
-    DoLoad(var_handle->Offset, reg, force_absolute_load);
+    // DoLoad(var_handle->Offset, reg, force_absolute_load);
+    EmitVariableGetInt32(var_handle->VarIndexInScope, reg);
 
     if (mode == RhsMode::RHS_FETCH_TO_REGISTER) {
         return reg;
@@ -3493,21 +3491,45 @@ FxScriptRegister FxScriptIREmitter::EmitVarFetch(FxAstVarRef* ref, RhsMode mode)
     // If we are just copying the variable to this new variable, we can free the register after
     // we push to the stack.
     if (mode == RhsMode::RHS_DEFINE_IN_MEMORY) {
-        if (var_handle->Type == FxScriptValue::STRING) {
+        if (var_handle->Type == FoxValue::STRING) {
             EmitType(var_handle->Type);
         }
 
-        EmitPush32r(reg);
+        // Save the value register to the new variable
+
+        EmitVariableSetReg32(var_handle->VarIndexInScope, reg);
+        // EmitPush32r(reg);
         MARK_REGISTER_FREE(reg);
 
-        return FX_REG_NONE;
+        return FX_IR_GW0;
     }
 
-    // This is a reference to a variable, return the register we loaded it into
     return reg;
 }
 
-void FxScriptIREmitter::DoLoad(uint32 stack_offset, FxScriptRegister output_reg, bool force_absolute)
+
+uint16 FoxIREmitter::GetSizeOfType(FoxTokenizer::Token* token)
+{
+    const FoxHash type_hash = token->GetHash();
+
+    constexpr FoxHash type_int_hash = FoxHashStr("int");
+    constexpr FoxHash type_float_hash = FoxHashStr("float");
+
+    if (type_hash == type_int_hash) {
+        return sizeof(int32);
+    }
+    else if (type_hash == type_float_hash) {
+        return sizeof(float32);
+    }
+    else {
+        printf("!!! UNKNOWN TYPE\n");
+    }
+
+    return 0;
+}
+
+
+void FoxIREmitter::DoLoad(uint32 stack_offset, FoxIRRegister output_reg, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative load
@@ -3523,7 +3545,7 @@ void FxScriptIREmitter::DoLoad(uint32 stack_offset, FxScriptRegister output_reg,
     }
 }
 
-void FxScriptIREmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute)
+void FoxIREmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative save
@@ -3539,7 +3561,7 @@ void FxScriptIREmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool forc
     }
 }
 
-void FxScriptIREmitter::DoSaveReg32(uint32 stack_offset, FxScriptRegister reg, bool force_absolute)
+void FoxIREmitter::DoSaveReg32(uint32 stack_offset, FoxIRRegister reg, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative save
@@ -3555,9 +3577,9 @@ void FxScriptIREmitter::DoSaveReg32(uint32 stack_offset, FxScriptRegister reg, b
     }
 }
 
-void FxScriptIREmitter::EmitAssign(FxAstAssign* assign)
+void FoxIREmitter::EmitAssign(FoxAstAssign* assign)
 {
-    FxScriptBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->Name->GetHash());
+    FoxBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->Name->GetHash());
     if (var_handle == nullptr) {
         printf("!!! Var '%.*s' does not exist!\n", assign->Var->Name->Length, assign->Var->Name->Start);
         return;
@@ -3579,20 +3601,20 @@ void FxScriptIREmitter::EmitAssign(FxAstAssign* assign)
     EmitRhs(assign->Rhs, RhsMode::RHS_ASSIGN_TO_HANDLE, var_handle);
 }
 
-FxScriptRegister FxScriptIREmitter::EmitLiteralInt(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle)
+FoxIRRegister FoxIREmitter::EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     // If this is on variable definition, push the value to the stack.
     if (mode == RhsMode::RHS_DEFINE_IN_MEMORY) {
         EmitPush32(literal->Value.ValueInt);
 
-        return FX_REG_NONE;
+        return FX_IR_GW3;
     }
 
     // If this is as a literal, push the value to the stack and pop onto the target register.
     else if (mode == RhsMode::RHS_FETCH_TO_REGISTER) {
         // EmitPush32(literal->Value.ValueInt);
 
-        FxScriptRegister output_reg = FindFreeRegister();
+        FoxIRRegister output_reg = FindFreeReg32();
         // EmitPop32(output_reg);
 
         EmitMoveInt32(output_reg, literal->Value.ValueInt);
@@ -3605,16 +3627,17 @@ FxScriptRegister FxScriptIREmitter::EmitLiteralInt(FxAstLiteral* literal, RhsMod
 
     else if (mode == RhsMode::RHS_ASSIGN_TO_HANDLE) {
         const bool force_absolute_save = (handle->ScopeIndex < mScopeIndex);
-        DoSaveInt32(handle->Offset, literal->Value.ValueInt, force_absolute_save);
+        // DoSaveInt32(handle->Offset, literal->Value.ValueInt, force_absolute_save);
+        EmitVariableSetInt32(handle->VarIndexInScope, literal->Value.ValueInt);
 
-        return FX_REG_NONE;
+        return FX_IR_GW3;
     }
 
-    return FX_REG_NONE;
+    return FX_IR_GW3;
 }
 
 
-FxScriptRegister FxScriptIREmitter::EmitLiteralString(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle)
+FoxIRRegister FoxIREmitter::EmitLiteralString(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     const uint32 string_length = strlen(literal->Value.ValueString);
 
@@ -3624,22 +3647,22 @@ FxScriptRegister FxScriptIREmitter::EmitLiteralString(FxAstLiteral* literal, Rhs
     // local string some_value = "Some String";
     if (mode == RhsMode::RHS_DEFINE_IN_MEMORY) {
         // Push the location and mark it as a pointer to a string
-        EmitType(FxScriptValue::STRING);
+        EmitType(FoxValue::STRING);
         EmitPush32(string_position);
 
-        return FX_REG_NONE;
+        return FX_IR_GW3;
     }
 
     // some_function("Some String")
     else if (mode == RhsMode::RHS_FETCH_TO_REGISTER) {
         // Push the location for the string and pop it back to a register.
-        EmitType(FxScriptValue::STRING);
+        EmitType(FoxValue::STRING);
 
         // Push the string position
         // EmitPush32(string_position);
 
         // Find a register to output to and write the index
-        FxScriptRegister output_reg = FindFreeRegister();
+        FoxIRRegister output_reg = FindFreeReg32();
         // EmitPop32(output_reg);
 
         EmitMoveInt32(output_reg, string_position);
@@ -3655,49 +3678,56 @@ FxScriptRegister FxScriptIREmitter::EmitLiteralString(FxAstLiteral* literal, Rhs
         const bool force_absolute_save = (handle->ScopeIndex < mScopeIndex);
 
         DoSaveInt32(handle->Offset, string_position, force_absolute_save);
-        handle->Type = FxScriptValue::STRING;
+        handle->Type = FoxValue::STRING;
 
-        return FX_REG_NONE;
+        return FX_IR_GW3;
     }
 
-    return FX_REG_NONE;
+    return FX_IR_GW3;
 }
 
-FxScriptRegister FxScriptIREmitter::EmitRhs(FxAstNode* rhs, FxScriptIREmitter::RhsMode mode, FxScriptBytecodeVarHandle* handle)
+void FoxIREmitter::EmitMarker(IrSpecMarker spec)
+{
+    WriteOp(IrBase_Marker, spec);
+}
+
+FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     if (rhs->NodeType == FX_AST_LITERAL) {
-        FxAstLiteral* literal = reinterpret_cast<FxAstLiteral*>(rhs);
+        FoxAstLiteral* literal = reinterpret_cast<FoxAstLiteral*>(rhs);
 
-        if (literal->Value.Type == FxScriptValue::INT) {
+        if (literal->Value.Type == FoxValue::INT) {
             return EmitLiteralInt(literal, mode, handle);
         }
-        else if (literal->Value.Type == FxScriptValue::STRING) {
+        else if (literal->Value.Type == FoxValue::STRING) {
             return EmitLiteralString(literal, mode, handle);
         }
-        else if (literal->Value.Type == FxScriptValue::REF) {
+        else if (literal->Value.Type == FoxValue::REF) {
             // Reference another value, load from memory into register
-            FxScriptRegister output_register = EmitVarFetch(literal->Value.ValueRef, mode);
+            FoxIRRegister output_register = EmitVarFetch(literal->Value.ValueRef, mode);
             if (mode == IRRhsMode::RHS_ASSIGN_TO_HANDLE) {
-                DoSaveReg32(handle->Offset, output_register);
+                // DoSaveReg32(handle->Offset, output_register);
+                //
+                EmitVariableSetReg32(handle->VarIndexInScope, output_register);
             }
 
             return output_register;
         }
 
-        return FX_REG_NONE;
+        return FX_IR_GW3;
     }
 
     else if (rhs->NodeType == FX_AST_ACTIONCALL || rhs->NodeType == FX_AST_BINOP) {
-        FxScriptRegister result_register = FX_REG_XR;
+        FoxIRRegister result_register = FX_IR_GW3;
 
         if (rhs->NodeType == FX_AST_BINOP) {
-            result_register = EmitBinop(reinterpret_cast<FxAstBinop*>(rhs), handle);
+            result_register = EmitBinop(reinterpret_cast<FoxAstBinop*>(rhs), handle);
         }
 
         else if (rhs->NodeType == FX_AST_ACTIONCALL) {
-            DoActionCall(reinterpret_cast<FxAstActionCall*>(rhs));
-            // Action results are stored in XR
-            result_register = FX_REG_XR;
+            DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(rhs));
+            // Function results are stored in XR
+            result_register = FX_IR_GW3;
         }
 
 
@@ -3705,19 +3735,23 @@ FxScriptRegister FxScriptIREmitter::EmitRhs(FxAstNode* rhs, FxScriptIREmitter::R
             uint32 offset = mStackOffset;
             EmitPush32r(result_register);
 
+            MARK_REGISTER_FREE(result_register);
+
             if (handle) {
                 handle->Offset = offset;
             }
 
-            return FX_REG_NONE;
+            return FX_IR_GW3;
         }
 
         else if (mode == RhsMode::RHS_FETCH_TO_REGISTER) {
             // Push the result to a register
             EmitPush32r(result_register);
 
+            MARK_REGISTER_FREE(result_register);
+
             // Find a register to output to, and pop the value to there.
-            FxScriptRegister output_reg = FindFreeRegister();
+            FoxIRRegister output_reg = FindFreeReg32();
             EmitPop32(output_reg);
 
             // Mark the output register as used to store it
@@ -3725,63 +3759,76 @@ FxScriptRegister FxScriptIREmitter::EmitRhs(FxAstNode* rhs, FxScriptIREmitter::R
 
             return output_reg;
         }
-        else if (mode == RhsMode::RHS_ASSIGN_TO_HANDLE) {
+        else if (mode == IRRhsMode::RHS_ASSIGN_TO_HANDLE) {
             const bool force_absolute_save = (handle->ScopeIndex < mScopeIndex);
 
             // Save the value back to the variable
-            DoSaveReg32(handle->Offset, result_register, force_absolute_save);
+            // DoSaveReg32(handle->Offset, result_register, force_absolute_save);
 
-            return FX_REG_NONE;
+            EmitVariableSetReg32(handle->VarIndexInScope, result_register);
+            MARK_REGISTER_FREE(result_register);
+
+            return FX_IR_GW3;
         }
     }
 
-    return FX_REG_NONE;
+    return FX_IR_GW3;
 }
 
-FxScriptBytecodeVarHandle* FxScriptIREmitter::DoVarDeclare(FxAstVarDecl* decl, VarDeclareMode mode)
+FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode)
 {
     RETURN_VALUE_IF_NO_NODE(decl, nullptr);
 
-    const uint16 size_of_type = static_cast<uint16>(sizeof(int32));
+    // const uint16 size_of_type = static_cast<uint16>(sizeof(int32));
 
-    const FxHash type_int = FxHashStr("int");
-    const FxHash type_string = FxHashStr("string");
+    const FoxHash type_int = FoxHashStr("int");
+    const FoxHash type_string = FoxHashStr("string");
 
-    FxHash decl_hash = decl->Name->GetHash();
+    FoxHash decl_hash = decl->Name->GetHash();
+    FoxHash type_hash = decl->Type->GetHash();
 
-    FxScriptValue::ValueType value_type = FxScriptValue::INT;
+    FoxValue::ValueType value_type = FoxValue::INT;
 
-    switch (decl_hash) {
+    switch (type_hash) {
     case type_int:
-        value_type = FxScriptValue::INT;
+        value_type = FoxValue::INT;
         break;
     case type_string:
-        value_type = FxScriptValue::STRING;
+        value_type = FoxValue::STRING;
         break;
     };
 
-    FxScriptBytecodeVarHandle handle {
-        .HashedName = decl->Name->GetHash(),
-        .Type = value_type, // Just int for now
-        .Offset = (mStackOffset),
-        .SizeOnStack = size_of_type,
-        .ScopeIndex = mScopeIndex,
-    };
+    const uint16 size_of_type = GetSizeOfType(decl->Type);
 
-    VarHandles.Insert(handle);
+    // FoxBytecodeVarHandle handle {
+    //     .HashedName = decl_hash,
+    //     .Type = value_type, // Just int for now
+    //     .Offset = (mStackOffset),
+    //     .SizeOnStack = size_of_type,
+    //     .ScopeIndex = mScopeIndex,
+    // };
 
-    FxScriptBytecodeVarHandle* inserted_handle = &VarHandles[VarHandles.Size() - 1];
+    // VarHandles.Insert(handle);
+
+    // FoxBytecodeVarHandle* inserted_handle = &VarHandles[VarHandles.Size() - 1];
+
+    FoxBytecodeVarHandle* var_handle = FindVarHandle(decl_hash);
+
+    if (var_handle == nullptr) {
+        printf("!!! Could not find var handle!\n");
+        return nullptr;
+    }
 
     if (mode == DECLARE_NO_EMIT) {
         // Do not emit any values
-        return inserted_handle;
+        return var_handle;
     }
 
 
     if (decl->Assignment) {
-        FxAstNode* rhs = decl->Assignment->Rhs;
+        FoxAstNode* rhs = decl->Assignment->Rhs;
 
-        EmitRhs(rhs, RhsMode::RHS_DEFINE_IN_MEMORY, inserted_handle);
+        EmitRhs(rhs, RhsMode::RHS_ASSIGN_TO_HANDLE, var_handle);
 
 
         // EmitPush32(0);
@@ -3794,22 +3841,22 @@ FxScriptBytecodeVarHandle* FxScriptIREmitter::DoVarDeclare(FxAstVarDecl* decl, V
         EmitPush32(0);
     }
 
-    return inserted_handle;
+    return var_handle;
 }
 
-void FxScriptIREmitter::DoActionCall(FxAstActionCall* call)
+void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
 {
     RETURN_IF_NO_NODE(call);
 
-    FxScriptBytecodeActionHandle* handle = FindActionHandle(call->HashedName);
+    FoxBytecodeFunctionHandle* handle = FindFunctionHandle(call->HashedName);
 
 
     std::vector<uint32> call_locations;
     call_locations.reserve(8);
 
     // Push all params to stack
-    for (FxAstNode* param : call->Params) {
-        // FxScriptRegister reg =
+    for (FoxAstNode* param : call->Params) {
+        // FoxRegister reg =
         if (param->NodeType == FX_AST_ACTIONCALL) {
             EmitRhs(param, RhsMode::RHS_DEFINE_IN_MEMORY, nullptr);
             call_locations.push_back(mStackOffset - 4);
@@ -3817,16 +3864,16 @@ void FxScriptIREmitter::DoActionCall(FxAstActionCall* call)
         // MARK_REGISTER_FREE(reg);
     }
 
-    EmitPush32r(FX_REG_RA);
+    // EmitPush32r(FX_REG_RA);
 
     EmitParamsStart();
 
     int call_location_index = 0;
 
     // Push all params to stack
-    for (FxAstNode* param : call->Params) {
+    for (FoxAstNode* param : call->Params) {
         if (param->NodeType == FX_AST_ACTIONCALL) {
-            FxScriptRegister temp_register = FindFreeRegister();
+            FoxIRRegister temp_register = FindFreeReg32();
 
             DoLoad(call_locations[call_location_index], temp_register);
             call_location_index++;
@@ -3851,16 +3898,16 @@ void FxScriptIREmitter::DoActionCall(FxAstActionCall* call)
 
         EmitJumpCallExternal(call->HashedName);
 
-        EmitPop32(FX_REG_RA);
+        // EmitPop32(FX_REG_RA);
         return;
     }
 
     EmitJumpCallAbsolute(handle->BytecodeIndex);
 
-    EmitPop32(FX_REG_RA);
+    // EmitPop32(FX_REG_RA);
 }
 
-FxScriptBytecodeVarHandle* FxScriptIREmitter::DefineAndFetchParam(FxAstNode* param_decl_node)
+FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_node)
 {
     if (param_decl_node->NodeType != FX_AST_VARDECL) {
         printf("!!! param node type is not vardecl!\n");
@@ -3868,7 +3915,7 @@ FxScriptBytecodeVarHandle* FxScriptIREmitter::DefineAndFetchParam(FxAstNode* par
     }
 
     // Emit variable without emitting pushes or pops
-    FxScriptBytecodeVarHandle* handle = DoVarDeclare(reinterpret_cast<FxAstVarDecl*>(param_decl_node), DECLARE_NO_EMIT);
+    FoxBytecodeVarHandle* handle = DoVarDeclare(reinterpret_cast<FoxAstVarDecl*>(param_decl_node), DECLARE_NO_EMIT);
 
     if (!handle) {
         printf("!!! could not define and fetch param!\n");
@@ -3882,62 +3929,66 @@ FxScriptBytecodeVarHandle* FxScriptIREmitter::DefineAndFetchParam(FxAstNode* par
     return handle;
 }
 
-FxScriptBytecodeVarHandle* FxScriptIREmitter::DefineReturnVar(FxAstVarDecl* decl)
+FoxBytecodeVarHandle* FoxIREmitter::DefineReturnVar(FoxAstVarDecl* decl)
 {
     RETURN_VALUE_IF_NO_NODE(decl, nullptr);
 
     return DoVarDeclare(decl);
 }
 
-void FxScriptIREmitter::EmitAction(FxAstActionDecl* action)
+void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
 {
-    RETURN_IF_NO_NODE(action);
+    RETURN_IF_NO_NODE(function);
 
     ++mScopeIndex;
 
-    // Store the bytecode offset before the action is emitted
+    // Store the bytecode offset before the function is emitted
 
-    const size_t start_of_action = mBytecode.Size();
-    printf("Start of action %zu\n", start_of_action);
+    const size_t start_of_function = mBytecode.Size();
+    printf("Start of function %zu\n", start_of_function);
 
     // Emit the jump instruction, we will update the jump position after emitting all of the code inside the block
     EmitJumpRelative(0);
 
     // const uint32 initial_stack_offset = mStackOffset;
 
-    const size_t header_jump_start_index = start_of_action + sizeof(uint16);
+    const size_t header_jump_start_index = start_of_function + sizeof(uint16);
 
     size_t start_var_handle_count = VarHandles.Size();
 
     // Offset for the pushed return address
     mStackOffset += 4;
 
-    // Emit the body of the action
+    // Emit the body of the function
     {
-        for (FxAstNode* param_decl_node : action->Params->Statements) {
+        for (FoxAstNode* param_decl_node : function->Params->Statements) {
             DefineAndFetchParam(param_decl_node);
         }
 
-        FxScriptBytecodeVarHandle* return_var = DefineReturnVar(action->ReturnVar);
+        FoxBytecodeVarHandle* return_var = DefineReturnVar(function->ReturnVar);
 
-        EmitBlock(action->Block);
+        EmitBlock(function->Block);
 
-        // Check to see if there has been a return statement in the action
+        // Check to see if there has been a return statement in the function
         bool block_has_return = false;
 
-        for (FxAstNode* statement : action->Block->Statements) {
+        for (FoxAstNode* statement : function->Block->Statements) {
             if (statement->NodeType == FX_AST_RETURN) {
                 block_has_return = true;
                 break;
             }
         }
 
-        // There is no return statement in the action's block, add a return statement
+        // There is no return statement in the function's block, add a return statement
         if (!block_has_return) {
             EmitJumpReturnToCaller();
 
+            FoxIRRegister result_register = FindFreeReg32();
+
+            MARK_REGISTER_USED(result_register);
+
             if (return_var != nullptr) {
-                DoLoad(return_var->Offset, FX_REG_XR);
+                DoLoad(return_var->Offset, result_register);
             }
         }
     }
@@ -3945,40 +3996,70 @@ void FxScriptIREmitter::EmitAction(FxAstActionDecl* action)
     // Return offset back to pre-call
     mStackOffset -= 4;
 
-    const size_t end_of_action = mBytecode.Size();
-    const uint16 distance_to_action = static_cast<uint16>(end_of_action - (start_of_action)-4);
+    const size_t end_of_function = mBytecode.Size();
+    const uint16 distance_to_function = static_cast<uint16>(end_of_function - (start_of_function)-4);
 
-    // Update the jump to the end of the action
-    mBytecode[header_jump_start_index] = static_cast<uint8>(distance_to_action >> 8);
-    mBytecode[header_jump_start_index + 1] = static_cast<uint8>((distance_to_action & 0xFF));
+    // Update the jump to the end of the function
+    mBytecode[header_jump_start_index] = static_cast<uint8>(distance_to_function >> 8);
+    mBytecode[header_jump_start_index + 1] = static_cast<uint8>((distance_to_function & 0xFF));
 
-    FxScriptBytecodeActionHandle action_handle {.HashedName = action->Name->GetHash(), .BytecodeIndex = static_cast<uint32>(start_of_action + 4)};
+    FoxBytecodeFunctionHandle function_handle {.HashedName = function->Name->GetHash(), .BytecodeIndex = static_cast<uint32>(start_of_function + 4)};
 
     const size_t number_of_scope_var_handles = VarHandles.Size() - start_var_handle_count;
     printf("Number of var handles to remove: %zu\n", number_of_scope_var_handles);
 
-    ActionHandles.push_back(action_handle);
+    FunctionHandles.push_back(function_handle);
 
     --mScopeIndex;
 
     // Delete the variables on the stack
     for (int i = 0; i < number_of_scope_var_handles; i++) {
-        FxScriptBytecodeVarHandle* var = VarHandles.RemoveLast();
+        FoxBytecodeVarHandle* var = VarHandles.RemoveLast();
         assert(var->SizeOnStack == 4);
         mStackOffset -= var->SizeOnStack;
     }
 }
 
-void FxScriptIREmitter::EmitBlock(FxAstBlock* block)
+void FoxIREmitter::EmitBlock(FoxAstBlock* block)
 {
     RETURN_IF_NO_NODE(block);
 
-    for (FxAstNode* node : block->Statements) {
+    EmitMarker(IrSpecMarker_FrameBegin);
+
+
+    // For each var declared in the block, write a stack allocation in the frame header
+    for (FoxAstNode* node : block->Statements) {
+        if (node->NodeType == FX_AST_VARDECL) {
+            FoxAstVarDecl* var_decl = reinterpret_cast<FoxAstVarDecl*>(node);
+
+            uint32 stack_index = mStackOffset;
+
+            EmitStackAlloc(GetSizeOfType(var_decl->Type));
+
+            FoxBytecodeVarHandle var_handle {
+                .HashedName = var_decl->Name->GetHash(),
+                .Offset = stack_index,
+                .ScopeIndex = mScopeIndex,
+
+                .VarIndexInScope = mVarsInScope,
+                .Type = FoxValue::INT,
+            };
+
+            VarHandles.Insert(var_handle);
+
+            ++mVarsInScope;
+        }
+    }
+
+    for (FoxAstNode* node : block->Statements) {
         Emit(node);
     }
+
+    mVarsInScope = 0;
+    EmitMarker(IrSpecMarker_FrameEnd);
 }
 
-void FxScriptIREmitter::PrintBytecode()
+void FoxIREmitter::PrintBytecode()
 {
     const size_t size = mBytecode.Size();
     for (int i = 0; i < 25; i++) {
@@ -4007,7 +4088,7 @@ void FxScriptIREmitter::PrintBytecode()
 // Bytecode Printer
 /////////////////////////////////////
 
-uint16 FxScriptIRPrinter::Read16()
+uint16 FoxIRPrinter::Read16()
 {
     uint8 lo = mBytecode[mBytecodeIndex++];
     uint8 hi = mBytecode[mBytecodeIndex++];
@@ -4015,7 +4096,7 @@ uint16 FxScriptIRPrinter::Read16()
     return ((static_cast<uint16>(lo) << 8) | hi);
 }
 
-uint32 FxScriptIRPrinter::Read32()
+uint32 FoxIRPrinter::Read32()
 {
     uint16 lo = Read16();
     uint16 hi = Read16();
@@ -4025,22 +4106,22 @@ uint32 FxScriptIRPrinter::Read32()
 
 #define BC_PRINT_OP(fmt_, ...) snprintf(s, 128, fmt_, ##__VA_ARGS__)
 
-void FxScriptIRPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxIRPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == IrSpecLoad_Int32) {
         int16 offset = Read16();
-        BC_PRINT_OP("load32 %d, %s", offset, FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(op_reg)));
+        BC_PRINT_OP("load32 %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
     else if (op_spec == IrSpecLoad_AbsoluteInt32) {
         uint32 offset = Read32();
-        BC_PRINT_OP("load32a %u, %s", offset, FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(op_reg)));
+        BC_PRINT_OP("load32a %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
-void FxScriptIRPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
+void FoxIRPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecPush_Int32) {
         uint32 value = Read32();
@@ -4048,32 +4129,36 @@ void FxScriptIRPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == IrSpecPush_Reg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("push32r %s", FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(reg)));
+        BC_PRINT_OP("push32r %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+    }
+    else if (op_spec == IrSpecPush_StackAlloc) {
+        uint16 size = Read16();
+        BC_PRINT_OP("salloc %d", size);
     }
 }
 
-void FxScriptIRPrinter::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxIRPrinter::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
-    if (op_spec == IrSpecPush_Int32) {
-        BC_PRINT_OP("pop32 %s", FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(op_reg)));
+    if (op_spec == IrSpecPop_Int32) {
+        BC_PRINT_OP("pop32 %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
-void FxScriptIRPrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
+void FoxIRPrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
 {
     uint8 a_reg = mBytecode[mBytecodeIndex++];
     uint8 b_reg = mBytecode[mBytecodeIndex++];
 
     if (op_spec == IrSpecArith_Add) {
-        BC_PRINT_OP("add32 %s, %s", FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(a_reg)),
-                    FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(b_reg)));
+        BC_PRINT_OP("add32 %s, %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
+                    FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
     }
 }
 
-void FxScriptIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
+void FoxIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
 {
     // Save a imm32 into an offset in the stack
     if (op_spec == IrSpecSave_Int32) {
@@ -4088,7 +4173,7 @@ void FxScriptIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const int16 offset = Read16();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save32r %d, %s", offset, FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(reg)));
+        BC_PRINT_OP("save32r %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecSave_AbsoluteInt32) {
         const uint32 offset = Read32();
@@ -4100,11 +4185,11 @@ void FxScriptIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const uint32 offset = Read32();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save32ar %u, %s", offset, FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(reg)));
+        BC_PRINT_OP("save32ar %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
 }
 
-void FxScriptIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
+void FoxIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecJump_Relative) {
         uint16 offset = Read16();
@@ -4117,7 +4202,7 @@ void FxScriptIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == IrSpecJump_AbsoluteReg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("jmpar %s", FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(reg)));
+        BC_PRINT_OP("jmpar %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecJump_CallAbsolute) {
         uint32 position = Read32();
@@ -4132,7 +4217,8 @@ void FxScriptIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptIRPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
+
+void FoxIRPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecData_String) {
         uint16 length = Read16();
@@ -4150,12 +4236,9 @@ void FxScriptIRPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
 
         FX_SCRIPT_FREE(char, data_str);
     }
-    else if (op_spec == IrSpecData_ParamsStart) {
-        BC_PRINT_OP("paramsstart");
-    }
 }
 
-void FxScriptIRPrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
+void FoxIRPrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecType_Int) {
         BC_PRINT_OP("typeint");
@@ -4165,26 +4248,59 @@ void FxScriptIRPrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FxScriptIRPrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxIRPrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == IrSpecMove_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("move32 %s, %u\t", FxScriptIREmitter::GetRegisterName(static_cast<FxScriptRegister>(op_reg)), value);
+        BC_PRINT_OP("move32 %s, %u\t", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
+    }
+}
+
+void FoxIRPrinter::DoMarker(char* s, uint8 op_base, uint8 op_spec)
+{
+    if (op_spec == IrSpecMarker_FrameBegin) {
+        BC_PRINT_OP("frame begin");
+    }
+    else if (op_spec == IrSpecMarker_FrameEnd) {
+        BC_PRINT_OP("frame end");
+    }
+    else if (op_spec == IrSpecMarker_ParamsBegin) {
+        BC_PRINT_OP("params begin");
     }
 }
 
 
-void FxScriptIRPrinter::Print()
+void FoxIRPrinter::DoVariable(char* s, uint8 op_base, uint8 op_spec)
+{
+    if (op_spec == IrSpecVariable_Get_Int32) {
+        uint16 var_index = Read16();
+        FoxIRRegister dest_reg = static_cast<FoxIRRegister>(Read16());
+        BC_PRINT_OP("vget $%d, %s", var_index, FoxIREmitter::GetRegisterName(dest_reg));
+    }
+    else if (op_spec == IrSpecVariable_Set_Int32) {
+        uint16 var_index = Read16();
+        uint32 value = Read32();
+        BC_PRINT_OP("vset $%d, %d", var_index, value);
+    }
+    else if (op_spec == IrSpecVariable_Set_Reg32) {
+        uint16 var_index = Read16();
+        FoxIRRegister reg = static_cast<FoxIRRegister>(Read16());
+        BC_PRINT_OP("vset $%d, %s", var_index, FoxIREmitter::GetRegisterName(reg));
+    }
+}
+
+
+void FoxIRPrinter::Print()
 {
     while (mBytecodeIndex < mBytecode.Size()) {
         PrintOp();
     }
 }
 
-void FxScriptIRPrinter::PrintOp()
+void FoxIRPrinter::PrintOp()
 {
     uint32 bc_index = mBytecodeIndex;
 
@@ -4222,6 +4338,12 @@ void FxScriptIRPrinter::PrintOp()
         break;
     case IrBase_Move:
         DoMove(s, op_base, op_spec);
+        break;
+    case IrBase_Marker:
+        DoMarker(s, op_base, op_spec);
+        break;
+    case IrBase_Variable:
+        DoVariable(s, op_base, op_spec);
         break;
     }
 

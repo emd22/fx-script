@@ -1,7 +1,7 @@
 #pragma once
 
-#include "FxMPPagedArray.hpp"
-#include "FxTokenizer.hpp"
+#include "FoxMPPagedArray.hpp"
+#include "FoxTokenizer.hpp"
 
 #include <vector>
 
@@ -12,13 +12,13 @@
 #define FX_SCRIPT_VAR_RETURN_VAL "__ReturnVal__"
 
 
-struct FxAstVarRef;
-struct FxScriptScope;
-struct FxScriptAction;
+struct FoxAstVarRef;
+struct FoxScope;
+struct FoxFunction;
 
-struct FxScriptValue
+struct FoxValue
 {
-    static FxScriptValue None;
+    static FoxValue None;
 
     enum ValueType : uint16
     {
@@ -39,22 +39,22 @@ struct FxScriptValue
         float ValueVec3[3];
         char* ValueString;
 
-        FxAstVarRef* ValueRef;
+        FoxAstVarRef* ValueRef;
     };
 
-    FxScriptValue()
+    FoxValue()
     {
     }
 
-    explicit FxScriptValue(ValueType type, int value) : Type(type), ValueInt(value)
+    explicit FoxValue(ValueType type, int value) : Type(type), ValueInt(value)
     {
     }
 
-    explicit FxScriptValue(ValueType type, float value) : Type(type), ValueFloat(value)
+    explicit FoxValue(ValueType type, float value) : Type(type), ValueFloat(value)
     {
     }
 
-    FxScriptValue(const FxScriptValue& other)
+    FoxValue(const FoxValue& other)
     {
         Type = other.Type;
         if (other.Type == INT) {
@@ -102,7 +102,7 @@ struct FxScriptValue
     }
 };
 
-enum FxAstType
+enum FoxAstType
 {
     FX_AST_LITERAL,
     // FX_AST_NAME,
@@ -116,7 +116,7 @@ enum FxAstType
     FX_AST_VARDECL,
     FX_AST_ASSIGN,
 
-    // Actions
+    // Functions
     FX_AST_ACTIONDECL,
     FX_AST_ACTIONCALL,
     FX_AST_RETURN,
@@ -126,152 +126,152 @@ enum FxAstType
     FX_AST_COMMANDMODE,
 };
 
-struct FxAstNode
+struct FoxAstNode
 {
-    FxAstType NodeType;
+    FoxAstType NodeType;
 };
 
 
-struct FxAstLiteral : public FxAstNode
+struct FoxAstLiteral : public FoxAstNode
 {
-    FxAstLiteral()
+    FoxAstLiteral()
     {
         this->NodeType = FX_AST_LITERAL;
     }
 
-    // FxTokenizer::Token* Token = nullptr;
-    FxScriptValue Value;
+    // FoxTokenizer::Token* Token = nullptr;
+    FoxValue Value;
 };
 
-struct FxAstBinop : public FxAstNode
+struct FoxAstBinop : public FoxAstNode
 {
-    FxAstBinop()
+    FoxAstBinop()
     {
         this->NodeType = FX_AST_BINOP;
     }
 
-    FxTokenizer::Token* OpToken = nullptr;
-    FxAstNode* Left = nullptr;
-    FxAstNode* Right = nullptr;
+    FoxTokenizer::Token* OpToken = nullptr;
+    FoxAstNode* Left = nullptr;
+    FoxAstNode* Right = nullptr;
 };
 
-struct FxAstBlock : public FxAstNode
+struct FoxAstBlock : public FoxAstNode
 {
-    FxAstBlock()
+    FoxAstBlock()
     {
         this->NodeType = FX_AST_BLOCK;
     }
 
-    std::vector<FxAstNode*> Statements;
+    std::vector<FoxAstNode*> Statements;
 };
 
-struct FxAstVarRef : public FxAstNode
+struct FoxAstVarRef : public FoxAstNode
 {
-    FxAstVarRef()
+    FoxAstVarRef()
     {
         this->NodeType = FX_AST_VARREF;
     }
 
-    FxTokenizer::Token* Name = nullptr;
-    FxScriptScope* Scope = nullptr;
+    FoxTokenizer::Token* Name = nullptr;
+    FoxScope* Scope = nullptr;
 };
 
-struct FxAstAssign : public FxAstNode
+struct FoxAstAssign : public FoxAstNode
 {
-    FxAstAssign()
+    FoxAstAssign()
     {
         this->NodeType = FX_AST_ASSIGN;
     }
 
-    FxAstVarRef* Var = nullptr;
-    // FxScriptValue Value;
-    FxAstNode* Rhs = nullptr;
+    FoxAstVarRef* Var = nullptr;
+    // FoxValue Value;
+    FoxAstNode* Rhs = nullptr;
 };
 
-struct FxAstVarDecl : public FxAstNode
+struct FoxAstVarDecl : public FoxAstNode
 {
-    FxAstVarDecl()
+    FoxAstVarDecl()
     {
         this->NodeType = FX_AST_VARDECL;
     }
 
-    FxTokenizer::Token* Name = nullptr;
-    FxTokenizer::Token* Type = nullptr;
-    FxAstAssign* Assignment = nullptr;
+    FoxTokenizer::Token* Name = nullptr;
+    FoxTokenizer::Token* Type = nullptr;
+    FoxAstAssign* Assignment = nullptr;
 
     /// Ignore the scope that the variable is declared in, force it to be global.
     bool DefineAsGlobal = false;
 };
 
-struct FxAstDocComment : public FxAstNode
+struct FoxAstDocComment : public FoxAstNode
 {
-    FxAstDocComment()
+    FoxAstDocComment()
     {
         this->NodeType = FX_AST_DOCCOMMENT;
     }
 
-    FxTokenizer::Token* Comment;
+    FoxTokenizer::Token* Comment;
 };
 
-struct FxAstActionDecl : public FxAstNode
+struct FoxAstFunctionDecl : public FoxAstNode
 {
-    FxAstActionDecl()
+    FoxAstFunctionDecl()
     {
         this->NodeType = FX_AST_ACTIONDECL;
     }
 
-    FxTokenizer::Token* Name = nullptr;
-    FxAstVarDecl* ReturnVar = nullptr;
-    FxAstBlock* Params = nullptr;
-    FxAstBlock* Block = nullptr;
+    FoxTokenizer::Token* Name = nullptr;
+    FoxAstVarDecl* ReturnVar = nullptr;
+    FoxAstBlock* Params = nullptr;
+    FoxAstBlock* Block = nullptr;
 
-    std::vector<FxAstDocComment*> DocComments;
+    std::vector<FoxAstDocComment*> DocComments;
 };
 
-struct FxAstCommandMode : public FxAstNode
+struct FoxAstCommandMode : public FoxAstNode
 {
-    FxAstCommandMode()
+    FoxAstCommandMode()
     {
         this->NodeType = FX_AST_COMMANDMODE;
     }
 
-    FxAstNode* Node = nullptr;
+    FoxAstNode* Node = nullptr;
 };
 
-struct FxAstActionCall : public FxAstNode
+struct FoxAstFunctionCall : public FoxAstNode
 {
-    FxAstActionCall()
+    FoxAstFunctionCall()
     {
         this->NodeType = FX_AST_ACTIONCALL;
     }
 
-    FxScriptAction* Action = nullptr;
-    FxHash HashedName = 0;
-    std::vector<FxAstNode*> Params {}; // FxAstLiteral or FxAstVarRef
+    FoxFunction* Function = nullptr;
+    FoxHash HashedName = 0;
+    std::vector<FoxAstNode*> Params {}; // FoxAstLiteral or FoxAstVarRef
 };
 
-struct FxAstReturn : public FxAstNode
+struct FoxAstReturn : public FoxAstNode
 {
-    FxAstReturn()
+    FoxAstReturn()
     {
         this->NodeType = FX_AST_RETURN;
     }
 };
 
 /**
- * @brief Data is accessible from a label, such as a variable or an action.
+ * @brief Data is accessible from a label, such as a variable or an function.
  */
-struct FxScriptLabelledData
+struct FoxLabelledData
 {
-    FxHash HashedName = 0;
-    FxTokenizer::Token* Name = nullptr;
+    FoxHash HashedName = 0;
+    FoxTokenizer::Token* Name = nullptr;
 
-    FxScriptScope* Scope = nullptr;
+    FoxScope* Scope = nullptr;
 };
 
-struct FxScriptAction : public FxScriptLabelledData
+struct FoxFunction : public FoxLabelledData
 {
-    FxScriptAction(FxTokenizer::Token* name, FxScriptScope* scope, FxAstBlock* block, FxAstActionDecl* declaration)
+    FoxFunction(FoxTokenizer::Token* name, FoxScope* scope, FoxAstBlock* block, FoxAstFunctionDecl* declaration)
     {
         HashedName = name->GetHash();
         Name = name;
@@ -280,14 +280,14 @@ struct FxScriptAction : public FxScriptLabelledData
         Declaration = declaration;
     }
 
-    FxAstActionDecl* Declaration = nullptr;
-    FxAstBlock* Block = nullptr;
+    FoxAstFunctionDecl* Declaration = nullptr;
+    FoxAstBlock* Block = nullptr;
 };
 
-struct FxScriptVar : public FxScriptLabelledData
+struct FoxVar : public FoxLabelledData
 {
-    FxTokenizer::Token* Type = nullptr;
-    FxScriptValue Value;
+    FoxTokenizer::Token* Type = nullptr;
+    FoxValue Value;
 
     bool IsExternal = false;
 
@@ -297,11 +297,11 @@ struct FxScriptVar : public FxScriptLabelledData
         Value.Print();
     }
 
-    FxScriptVar()
+    FoxVar()
     {
     }
 
-    FxScriptVar(FxTokenizer::Token* type, FxTokenizer::Token* name, FxScriptScope* scope, bool is_external = false) : Type(type)
+    FoxVar(FoxTokenizer::Token* type, FoxTokenizer::Token* name, FoxScope* scope, bool is_external = false) : Type(type)
     {
         this->HashedName = name->GetHash();
         this->Name = name;
@@ -309,7 +309,7 @@ struct FxScriptVar : public FxScriptLabelledData
         IsExternal = is_external;
     }
 
-    FxScriptVar(const FxScriptVar& other)
+    FoxVar(const FoxVar& other)
     {
         HashedName = other.HashedName;
         Type = other.Type;
@@ -318,7 +318,7 @@ struct FxScriptVar : public FxScriptLabelledData
         IsExternal = other.IsExternal;
     }
 
-    FxScriptVar& operator=(FxScriptVar&& other) noexcept
+    FoxVar& operator=(FoxVar&& other) noexcept
     {
         HashedName = other.HashedName;
         Type = other.Type;
@@ -333,7 +333,7 @@ struct FxScriptVar : public FxScriptLabelledData
         return *this;
     }
 
-    ~FxScriptVar()
+    ~FoxVar()
     {
         if (!IsExternal) {
             return;
@@ -350,54 +350,54 @@ struct FxScriptVar : public FxScriptLabelledData
     }
 };
 
-class FxScriptVM;
+class FoxVM;
 
 
-struct FxScriptExternalFunc
+struct FoxExternalFunc
 {
-    // using FuncType = void (*)(FxScriptInterpreter& interpreter, std::vector<FxScriptValue>& params, FxScriptValue* return_value);
+    // using FuncType = void (*)(FoxInterpreter& interpreter, std::vector<FoxValue>& params, FoxValue* return_value);
 
-    using FuncType = void (*)(FxScriptVM* vm, std::vector<FxScriptValue>& params, FxScriptValue* return_value);
+    using FuncType = void (*)(FoxVM* vm, std::vector<FoxValue>& params, FoxValue* return_value);
 
-    FxHash HashedName = 0;
+    FoxHash HashedName = 0;
     FuncType Function = nullptr;
 
-    std::vector<FxScriptValue::ValueType> ParameterTypes;
+    std::vector<FoxValue::ValueType> ParameterTypes;
     bool IsVariadic = false;
 };
 
-struct FxScriptScope
+struct FoxScope
 {
-    FxMPPagedArray<FxScriptVar> Vars;
-    FxMPPagedArray<FxScriptAction> Actions;
+    FoxMPPagedArray<FoxVar> Vars;
+    FoxMPPagedArray<FoxFunction> Functions;
 
-    FxScriptScope* Parent = nullptr;
+    FoxScope* Parent = nullptr;
 
-    // This points to the return value for the current scope. If an action returns a value,
+    // This points to the return value for the current scope. If an function returns a value,
     // this will be set to the variable that holds its value. This is interpreter only.
-    FxScriptVar* ReturnVar = nullptr;
+    FoxVar* ReturnVar = nullptr;
 
     void PrintAllVarsInScope()
     {
         puts("\n=== SCOPE ===");
-        for (FxScriptVar& var : Vars) {
+        for (FoxVar& var : Vars) {
             var.Print();
         }
     }
 
-    FxScriptVar* FindVarInScope(FxHash hashed_name)
+    FoxVar* FindVarInScope(FoxHash hashed_name)
     {
-        return FindInScope<FxScriptVar>(hashed_name, Vars);
+        return FindInScope<FoxVar>(hashed_name, Vars);
     }
 
-    FxScriptAction* FindActionInScope(FxHash hashed_name)
+    FoxFunction* FindFunctionInScope(FoxHash hashed_name)
     {
-        return FindInScope<FxScriptAction>(hashed_name, Actions);
+        return FindInScope<FoxFunction>(hashed_name, Functions);
     }
 
     template <typename T>
-        requires std::is_base_of_v<FxScriptLabelledData, T>
-    T* FindInScope(FxHash hashed_name, const FxMPPagedArray<T>& buffer)
+        requires std::is_base_of_v<FoxLabelledData, T>
+    T* FindInScope(FoxHash hashed_name, const FoxMPPagedArray<T>& buffer)
     {
         for (T& var : buffer) {
             if (var.HashedName == hashed_name) {
@@ -409,36 +409,36 @@ struct FxScriptScope
     }
 };
 
-// class FxScriptInterpreter;
+// class FoxInterpreter;
 
-class FxConfigScript
+class FoxConfigScript
 {
-    using Token = FxTokenizer::Token;
-    using TT = FxTokenizer::TokenType;
+    using Token = FoxTokenizer::Token;
+    using TT = FoxTokenizer::TokenType;
 
 public:
-    FxConfigScript() = default;
+    FoxConfigScript() = default;
 
     void LoadFile(const char* path);
 
     void PushScope();
     void PopScope();
 
-    FxScriptVar* FindVar(FxHash hashed_name);
+    FoxVar* FindVar(FoxHash hashed_name);
 
-    FxScriptAction* FindAction(FxHash hashed_name);
-    FxScriptExternalFunc* FindExternalAction(FxHash hashed_name);
+    FoxFunction* FindFunction(FoxHash hashed_name);
+    FoxExternalFunc* FindExternalFunction(FoxHash hashed_name);
 
-    FxAstNode* TryParseKeyword(FxAstBlock* parent_block);
+    FoxAstNode* TryParseKeyword(FoxAstBlock* parent_block);
 
-    FxAstAssign* TryParseAssignment(FxTokenizer::Token* var_name);
+    FoxAstAssign* TryParseAssignment(FoxTokenizer::Token* var_name);
 
-    FxScriptValue ParseValue();
+    FoxValue ParseValue();
 
-    FxAstActionDecl* ParseActionDeclare();
+    FoxAstFunctionDecl* ParseFunctionDeclare();
 
-    FxAstNode* ParseRhs();
-    FxAstActionCall* ParseActionCall();
+    FoxAstNode* ParseRhs();
+    FoxAstFunctionCall* ParseFunctionCall();
 
     /**
      * @brief Declares a variable for internal uses as if it was declared in the script.
@@ -447,43 +447,42 @@ public:
      * @param scope The scope the variable will be declared in
      * @return
      */
-    FxAstVarDecl* InternalVarDeclare(FxTokenizer::Token* name_token, FxTokenizer::Token* type_token, FxScriptScope* scope = nullptr);
-    FxAstVarDecl* ParseVarDeclare(FxScriptScope* scope = nullptr);
+    FoxAstVarDecl* InternalVarDeclare(FoxTokenizer::Token* name_token, FoxTokenizer::Token* type_token, FoxScope* scope = nullptr);
+    FoxAstVarDecl* ParseVarDeclare(FoxScope* scope = nullptr);
 
-    FxAstBlock* ParseBlock();
+    FoxAstBlock* ParseBlock();
 
-    FxAstNode* ParseStatement(FxAstBlock* parent_block);
-    FxAstNode* ParseStatementAsCommand(FxAstBlock* parent_block);
+    FoxAstNode* ParseStatement(FoxAstBlock* parent_block);
+    FoxAstNode* ParseStatementAsCommand(FoxAstBlock* parent_block);
 
-    FxAstBlock* Parse();
+    FoxAstBlock* Parse();
 
     /**
      * @brief Parses and executes a script.
      * @param interpreter The interpreter to execute with
      */
-    void Execute(FxScriptVM& vm);
+    void Execute(FoxVM& vm);
 
     /**
      * @brief Executes a command on a script. Defaults to parsing with command style syntax.
      * @param command The command to execute on the script.
      * @return If the command has been executed
      */
-    // bool ExecuteUserCommand(const char* command, FxScriptInterpreter& interpreter);
+    // bool ExecuteUserCommand(const char* command, FoxInterpreter& interpreter);
 
     Token& GetToken(int offset = 0);
     Token& EatToken(TT token_type);
 
-    void RegisterExternalFunc(FxHash func_name, std::vector<FxScriptValue::ValueType> param_types, FxScriptExternalFunc::FuncType func,
-                              bool is_variadic);
+    void RegisterExternalFunc(FoxHash func_name, std::vector<FoxValue::ValueType> param_types, FoxExternalFunc::FuncType func, bool is_variadic);
 
-    void DefineExternalVar(const char* type, const char* name, const FxScriptValue& value);
+    void DefineExternalVar(const char* type, const char* name, const FoxValue& value);
 
 private:
     template <typename T>
-        requires std::is_base_of_v<FxScriptLabelledData, T>
-    T* FindLabelledData(FxHash hashed_name, FxMPPagedArray<T>& buffer)
+        requires std::is_base_of_v<FoxLabelledData, T>
+    T* FindLabelledData(FoxHash hashed_name, FoxMPPagedArray<T>& buffer)
     {
-        FxScriptScope* scope = mCurrentScope;
+        FoxScope* scope = mCurrentScope;
 
         while (scope) {
             T* var = scope->FindInScope<T>(hashed_name, buffer);
@@ -499,24 +498,24 @@ private:
 
     void DefineDefaultExternalFunctions();
 
-    Token* CreateTokenFromString(FxTokenizer::TokenType type, const char* text);
+    Token* CreateTokenFromString(FoxTokenizer::TokenType type, const char* text);
     void CreateInternalVariableTokens();
 
 private:
-    FxMPPagedArray<FxScriptScope> mScopes;
-    FxScriptScope* mCurrentScope;
+    FoxMPPagedArray<FoxScope> mScopes;
+    FoxScope* mCurrentScope;
 
-    std::vector<FxScriptExternalFunc> mExternalFuncs;
+    std::vector<FoxExternalFunc> mExternalFuncs;
 
-    std::vector<FxAstDocComment*> CurrentDocComments;
+    std::vector<FoxAstDocComment*> CurrentDocComments;
 
-    FxAstBlock* mRootBlock = nullptr;
+    FoxAstBlock* mRootBlock = nullptr;
 
     bool mHasErrors = false;
     bool mInCommandMode = false;
 
     char* mFileData;
-    FxMPPagedArray<Token> mTokens = {};
+    FoxMPPagedArray<Token> mTokens = {};
     uint32 mTokenIndex = 0;
 
     // Name tokens for internal variables
@@ -527,15 +526,15 @@ private:
 // Script AST Printer
 //////////////////////////////////
 
-class FxAstPrinter
+class FoxAstPrinter
 {
 public:
-    FxAstPrinter(FxAstBlock* root_block)
+    FoxAstPrinter(FoxAstBlock* root_block)
     //: mRootBlock(root_block)
     {
     }
 
-    void Print(FxAstNode* node, int depth = 0)
+    void Print(FoxAstNode* node, int depth = 0)
     {
         if (node == nullptr) {
             return;
@@ -549,25 +548,25 @@ public:
         if (node->NodeType == FX_AST_BLOCK) {
             puts("[BLOCK]");
 
-            FxAstBlock* block = reinterpret_cast<FxAstBlock*>(node);
-            for (FxAstNode* child : block->Statements) {
+            FoxAstBlock* block = reinterpret_cast<FoxAstBlock*>(node);
+            for (FoxAstNode* child : block->Statements) {
                 Print(child, depth + 1);
             }
             return;
         }
         else if (node->NodeType == FX_AST_ACTIONDECL) {
-            FxAstActionDecl* actiondecl = reinterpret_cast<FxAstActionDecl*>(node);
+            FoxAstFunctionDecl* functiondecl = reinterpret_cast<FoxAstFunctionDecl*>(node);
             printf("[ACTIONDECL] ");
-            actiondecl->Name->Print();
+            functiondecl->Name->Print();
 
-            for (FxAstNode* param : actiondecl->Params->Statements) {
+            for (FoxAstNode* param : functiondecl->Params->Statements) {
                 Print(param, depth + 1);
             }
 
-            Print(actiondecl->Block, depth + 1);
+            Print(functiondecl->Block, depth + 1);
         }
         else if (node->NodeType == FX_AST_VARDECL) {
-            FxAstVarDecl* vardecl = reinterpret_cast<FxAstVarDecl*>(node);
+            FoxAstVarDecl* vardecl = reinterpret_cast<FoxAstVarDecl*>(node);
 
             printf("[VARDECL] ");
             vardecl->Name->Print();
@@ -575,7 +574,7 @@ public:
             Print(vardecl->Assignment, depth + 1);
         }
         else if (node->NodeType == FX_AST_ASSIGN) {
-            FxAstAssign* assign = reinterpret_cast<FxAstAssign*>(node);
+            FoxAstAssign* assign = reinterpret_cast<FoxAstAssign*>(node);
 
             printf("[ASSIGN] ");
 
@@ -583,26 +582,26 @@ public:
             Print(assign->Rhs, depth + 1);
         }
         else if (node->NodeType == FX_AST_ACTIONCALL) {
-            FxAstActionCall* actioncall = reinterpret_cast<FxAstActionCall*>(node);
+            FoxAstFunctionCall* functioncall = reinterpret_cast<FoxAstFunctionCall*>(node);
 
             printf("[ACTIONCALL] ");
-            if (actioncall->Action == nullptr) {
+            if (functioncall->Function == nullptr) {
                 printf("{defined externally}");
             }
             else {
-                actioncall->Action->Name->Print(true);
+                functioncall->Function->Name->Print(true);
             }
 
-            printf(" (%zu params)\n", actioncall->Params.size());
+            printf(" (%zu params)\n", functioncall->Params.size());
         }
         else if (node->NodeType == FX_AST_LITERAL) {
-            FxAstLiteral* literal = reinterpret_cast<FxAstLiteral*>(node);
+            FoxAstLiteral* literal = reinterpret_cast<FoxAstLiteral*>(node);
 
             printf("[LITERAL] ");
             literal->Value.Print();
         }
         else if (node->NodeType == FX_AST_BINOP) {
-            FxAstBinop* binop = reinterpret_cast<FxAstBinop*>(node);
+            FoxAstBinop* binop = reinterpret_cast<FoxAstBinop*>(node);
 
             printf("[BINOP] ");
             binop->OpToken->Print();
@@ -611,7 +610,7 @@ public:
             Print(binop->Right, depth + 1);
         }
         else if (node->NodeType == FX_AST_COMMANDMODE) {
-            FxAstCommandMode* command_mode = reinterpret_cast<FxAstCommandMode*>(node);
+            FoxAstCommandMode* command_mode = reinterpret_cast<FoxAstCommandMode*>(node);
             printf("[COMMANDMODE]\n");
 
             Print(command_mode->Node, depth + 1);
@@ -626,14 +625,14 @@ public:
     }
 
 public:
-    // FxAstBlock* mRootBlock = nullptr;
+    // FoxAstBlock* mRootBlock = nullptr;
 };
 
 /////////////////////////////////////////////
 // Script Bytecode Emitter
 /////////////////////////////////////////////
 
-enum FxScriptRegister : uint8
+enum FoxBCRegister : uint8
 {
     FX_REG_NONE = 0x00,
     FX_REG_X0,
@@ -659,7 +658,8 @@ enum FxScriptRegister : uint8
     FX_REG_SIZE,
 };
 
-enum FxScriptRegisterFlag : uint16
+
+enum FoxRegisterFlag : uint16
 {
     FX_REGFLAG_NONE = 0x00,
     FX_REGFLAG_X0 = 0x01,
@@ -670,39 +670,60 @@ enum FxScriptRegisterFlag : uint16
     FX_REGFLAG_XR = 0x20,
 };
 
-inline FxScriptRegisterFlag operator|(FxScriptRegisterFlag a, FxScriptRegisterFlag b)
+
+enum FoxIRRegister : uint8
 {
-    return static_cast<FxScriptRegisterFlag>(static_cast<uint16>(a) | static_cast<uint16>(b));
+    /* General Purpose (32 bit) registers */
+    FX_IR_GW0,
+    FX_IR_GW1,
+    FX_IR_GW2,
+    FX_IR_GW3,
+
+    /* General Purpose (64 bit) registers */
+    FX_IR_GX0,
+    FX_IR_GX1,
+    FX_IR_GX2,
+    FX_IR_GX3,
+
+    /* Stack pointer */
+    FX_IR_SP,
+};
+
+inline FoxRegisterFlag operator|(FoxRegisterFlag a, FoxRegisterFlag b)
+{
+    return static_cast<FoxRegisterFlag>(static_cast<uint16>(a) | static_cast<uint16>(b));
 }
 
-inline FxScriptRegisterFlag operator&(FxScriptRegisterFlag a, FxScriptRegisterFlag b)
+inline FoxRegisterFlag operator&(FoxRegisterFlag a, FoxRegisterFlag b)
 {
-    return static_cast<FxScriptRegisterFlag>(static_cast<uint16>(a) & static_cast<uint16>(b));
+    return static_cast<FoxRegisterFlag>(static_cast<uint16>(a) & static_cast<uint16>(b));
 }
 
-struct FxScriptBytecodeVarHandle
+struct FoxBytecodeVarHandle
 {
-    FxHash HashedName = 0;
-    FxScriptValue::ValueType Type = FxScriptValue::INT;
+    FoxHash HashedName = 0;
+    FoxValue::ValueType Type = FoxValue::INT;
     int64 Offset = 0;
+
+    uint16 VarIndexInScope = 0;
 
     uint16 SizeOnStack = 4;
     uint32 ScopeIndex = 0;
 };
 
-struct FxScriptBytecodeActionHandle
+struct FoxBytecodeFunctionHandle
 {
-    FxHash HashedName = 0;
+    FoxHash HashedName = 0;
     uint32 BytecodeIndex = 0;
 };
 
-class FxScriptBCEmitter
+class FoxBCEmitter
 {
 public:
-    FxScriptBCEmitter() = default;
+    FoxBCEmitter() = default;
 
-    void BeginEmitting(FxAstNode* node);
-    void Emit(FxAstNode* node);
+    void BeginEmitting(FoxAstNode* node);
+    void Emit(FoxAstNode* node);
 
     enum RhsMode
     {
@@ -716,12 +737,12 @@ public:
         RHS_ASSIGN_TO_HANDLE,
     };
 
-    static FxScriptRegister RegFlagToReg(FxScriptRegisterFlag reg_flag);
-    static FxScriptRegisterFlag RegToRegFlag(FxScriptRegister reg);
+    static FoxBCRegister RegFlagToReg(FoxRegisterFlag reg_flag);
+    static FoxRegisterFlag RegToRegFlag(FoxBCRegister reg);
 
-    static const char* GetRegisterName(FxScriptRegister reg);
+    static const char* GetRegisterName(FoxBCRegister reg);
 
-    FxMPPagedArray<uint8> mBytecode {};
+    FoxMPPagedArray<uint8> mBytecode {};
 
     enum VarDeclareMode
     {
@@ -731,76 +752,76 @@ public:
 
 
 private:
-    void EmitBlock(FxAstBlock* block);
-    void EmitAction(FxAstActionDecl* action);
-    void DoActionCall(FxAstActionCall* call);
-    FxScriptBytecodeVarHandle* DoVarDeclare(FxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
-    void EmitAssign(FxAstAssign* assign);
-    FxScriptBytecodeVarHandle* DefineAndFetchParam(FxAstNode* param_decl_node);
-    FxScriptBytecodeVarHandle* DefineReturnVar(FxAstVarDecl* decl);
+    void EmitBlock(FoxAstBlock* block);
+    void EmitFunction(FoxAstFunctionDecl* function);
+    void DoFunctionCall(FoxAstFunctionCall* call);
+    FoxBytecodeVarHandle* DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
+    void EmitAssign(FoxAstAssign* assign);
+    FoxBytecodeVarHandle* DefineAndFetchParam(FoxAstNode* param_decl_node);
+    FoxBytecodeVarHandle* DefineReturnVar(FoxAstVarDecl* decl);
 
-    FxScriptRegister EmitVarFetch(FxAstVarRef* ref, RhsMode mode);
+    FoxBCRegister EmitVarFetch(FoxAstVarRef* ref, RhsMode mode);
 
-    void DoLoad(uint32 stack_offset, FxScriptRegister output_reg, bool force_absolute = false);
+    void DoLoad(uint32 stack_offset, FoxBCRegister output_reg, bool force_absolute = false);
     void DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute = false);
-    void DoSaveReg32(uint32 stack_offset, FxScriptRegister reg, bool force_absolute = false);
+    void DoSaveReg32(uint32 stack_offset, FoxBCRegister reg, bool force_absolute = false);
 
     void EmitPush32(uint32 value);
-    void EmitPush32r(FxScriptRegister reg);
+    void EmitPush32r(FoxBCRegister reg);
 
-    void EmitPop32(FxScriptRegister output_reg);
+    void EmitPop32(FoxBCRegister output_reg);
 
-    void EmitLoad32(int offset, FxScriptRegister output_reg);
-    void EmitLoadAbsolute32(uint32 position, FxScriptRegister output_reg);
+    void EmitLoad32(int offset, FoxBCRegister output_reg);
+    void EmitLoadAbsolute32(uint32 position, FoxBCRegister output_reg);
 
     void EmitSave32(int16 offset, uint32 value);
-    void EmitSaveReg32(int16 offset, FxScriptRegister reg);
+    void EmitSaveReg32(int16 offset, FoxBCRegister reg);
 
     void EmitSaveAbsolute32(uint32 offset, uint32 value);
-    void EmitSaveAbsoluteReg32(uint32 offset, FxScriptRegister reg);
+    void EmitSaveAbsoluteReg32(uint32 offset, FoxBCRegister reg);
 
     void EmitJumpRelative(uint16 offset);
     void EmitJumpAbsolute(uint32 position);
-    void EmitJumpAbsoluteReg32(FxScriptRegister reg);
+    void EmitJumpAbsoluteReg32(FoxBCRegister reg);
     void EmitJumpCallAbsolute(uint32 position);
     void EmitJumpReturnToCaller();
-    void EmitJumpCallExternal(FxHash hashed_name);
+    void EmitJumpCallExternal(FoxHash hashed_name);
 
-    void EmitMoveInt32(FxScriptRegister reg, uint32 value);
+    void EmitMoveInt32(FoxBCRegister reg, uint32 value);
 
     void EmitParamsStart();
-    void EmitType(FxScriptValue::ValueType type);
+    void EmitType(FoxValue::ValueType type);
 
     uint32 EmitDataString(char* str, uint16 length);
 
-    FxScriptRegister EmitBinop(FxAstBinop* binop, FxScriptBytecodeVarHandle* handle);
+    FoxBCRegister EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle);
 
-    FxScriptRegister EmitRhs(FxAstNode* rhs, RhsMode mode, FxScriptBytecodeVarHandle* handle);
+    FoxBCRegister EmitRhs(FoxAstNode* rhs, RhsMode mode, FoxBytecodeVarHandle* handle);
 
-    FxScriptRegister EmitLiteralInt(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle);
-    FxScriptRegister EmitLiteralString(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle);
+    FoxBCRegister EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle);
+    FoxBCRegister EmitLiteralString(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle);
 
 
     void WriteOp(uint8 base_op, uint8 spec_op);
     void Write16(uint16 value);
     void Write32(uint32 value);
 
-    FxScriptRegister FindFreeRegister();
+    FoxBCRegister FindFreeRegister();
 
-    FxScriptBytecodeVarHandle* FindVarHandle(FxHash hashed_name);
-    FxScriptBytecodeActionHandle* FindActionHandle(FxHash hashed_name);
+    FoxBytecodeVarHandle* FindVarHandle(FoxHash hashed_name);
+    FoxBytecodeFunctionHandle* FindFunctionHandle(FoxHash hashed_name);
 
     void PrintBytecode();
 
-    void MarkRegisterUsed(FxScriptRegister reg);
-    void MarkRegisterFree(FxScriptRegister reg);
+    void MarkRegisterUsed(FoxBCRegister reg);
+    void MarkRegisterFree(FoxBCRegister reg);
 
 public:
-    FxMPPagedArray<FxScriptBytecodeVarHandle> VarHandles;
-    std::vector<FxScriptBytecodeActionHandle> ActionHandles;
+    FoxMPPagedArray<FoxBytecodeVarHandle> VarHandles;
+    std::vector<FoxBytecodeFunctionHandle> FunctionHandles;
 
 private:
-    FxScriptRegisterFlag mRegsInUse = FX_REGFLAG_NONE;
+    FoxRegisterFlag mRegsInUse = FX_REGFLAG_NONE;
 
     int64 mStackOffset = 0;
     uint32 mStackSize = 0;
@@ -808,10 +829,10 @@ private:
     uint16 mScopeIndex = 0;
 };
 
-class FxScriptBCPrinter
+class FoxBCPrinter
 {
 public:
-    FxScriptBCPrinter(FxMPPagedArray<uint8>& bytecode)
+    FoxBCPrinter(FoxMPPagedArray<uint8>& bytecode)
     {
         mBytecode = bytecode;
         mBytecode.DoNotDestroy = true;
@@ -837,7 +858,7 @@ private:
 
 private:
     uint32 mBytecodeIndex = 0;
-    FxMPPagedArray<uint8> mBytecode;
+    FoxMPPagedArray<uint8> mBytecode;
 };
 
 
@@ -845,17 +866,17 @@ private:
 // Bytecode VM
 ///////////////////////////////////////////
 
-struct FxScriptVMCallFrame
+struct FoxVMCallFrame
 {
     uint32 StartStackIndex = 0;
 };
 
-class FxScriptVM
+class FoxVM
 {
 public:
-    FxScriptVM() = default;
+    FoxVM() = default;
 
-    void Start(FxMPPagedArray<uint8>&& bytecode)
+    void Start(FoxMPPagedArray<uint8>&& bytecode)
     {
         mBytecode = std::move(bytecode);
         mPushedTypes.Create(64);
@@ -895,11 +916,11 @@ private:
     uint16 Read16();
     uint32 Read32();
 
-    FxScriptVMCallFrame& PushCallFrame();
-    FxScriptVMCallFrame* GetCurrentCallFrame();
+    FoxVMCallFrame& PushCallFrame();
+    FoxVMCallFrame* GetCurrentCallFrame();
     void PopCallFrame();
 
-    FxScriptExternalFunc* FindExternalAction(FxHash hashed_name);
+    FoxExternalFunc* FindExternalFunction(FoxHash hashed_name);
 
 public:
     // NONE, X0, X1, X2, X3, RA, XR, SP
@@ -907,9 +928,9 @@ public:
 
     uint8* Stack = nullptr;
 
-    std::vector<FxScriptExternalFunc> mExternalFuncs;
+    std::vector<FoxExternalFunc> mExternalFuncs;
 
-    FxMPPagedArray<uint8> mBytecode;
+    FoxMPPagedArray<uint8> mBytecode;
 
 private:
     uint32 mPC = 0;
@@ -917,66 +938,66 @@ private:
 
     bool mIsInCallFrame = false;
 
-    FxScriptVMCallFrame mCallFrames[8];
+    FoxVMCallFrame mCallFrames[8];
     int mCallFrameIndex = 0;
 
     bool mIsInParams = false;
-    FxMPPagedArray<FxScriptValue::ValueType> mPushedTypes;
+    FoxMPPagedArray<FoxValue::ValueType> mPushedTypes;
 
-    FxScriptValue::ValueType mCurrentType = FxScriptValue::NONETYPE;
+    FoxValue::ValueType mCurrentType = FoxValue::NONETYPE;
 };
 
 ////////////////////////////////////////////////
 // Script Interpreter
 ////////////////////////////////////////////////
 #if 0
-class FxScriptInterpreter
+class FoxInterpreter
 {
 public:
-    FxScriptInterpreter() = default;
+    FoxInterpreter() = default;
 
     void PushScope();
     void PopScope();
 
-    FxScriptVar* FindVar(FxHash hashed_name);
-    FxScriptAction* FindAction(FxHash hashed_name);
-    FxScriptExternalFunc* FindExternalAction(FxHash hashed_name);
+    FoxVar* FindVar(FoxHash hashed_name);
+    FoxFunction* FindFunction(FoxHash hashed_name);
+    FoxExternalFunc* FindExternalFunction(FoxHash hashed_name);
 
     /**
      * @brief Evaluates and gets the immediate value if `value` is a reference, or returns the value if it is already immediate.
      * @param value The value to query from
      * @return the immediate(literal) value
      */
-    const FxScriptValue& GetImmediateValue(const FxScriptValue& value);
+    const FoxValue& GetImmediateValue(const FoxValue& value);
 
-    void DefineExternalVar(const char* type, const char* name, const FxScriptValue& value);
+    void DefineExternalVar(const char* type, const char* name, const FoxValue& value);
 
 private:
-    friend class FxConfigScript;
-    void Create(FxAstBlock* root_block);
+    friend class FoxConfigScript;
+    void Create(FoxAstBlock* root_block);
 
-    void Visit(FxAstNode* node);
+    void Visit(FoxAstNode* node);
 
     void Interpret();
 
-    FxScriptValue VisitExternalCall(FxAstActionCall* call, FxScriptExternalFunc& func);
-    FxScriptValue VisitActionCall(FxAstActionCall* call);
-    void VisitAssignment(FxAstAssign* assign);
-    FxScriptValue VisitRhs(FxAstNode* node);
+    FoxValue VisitExternalCall(FoxAstFunctionCall* call, FoxExternalFunc& func);
+    FoxValue VisitFunctionCall(FoxAstFunctionCall* call);
+    void VisitAssignment(FoxAstAssign* assign);
+    FoxValue VisitRhs(FoxAstNode* node);
 
-    bool CheckExternalCallArgs(FxAstActionCall* call, FxScriptExternalFunc& func);
+    bool CheckExternalCallArgs(FoxAstFunctionCall* call, FoxExternalFunc& func);
 
 
 
 private:
-    FxAstNode* mRootBlock = nullptr;
+    FoxAstNode* mRootBlock = nullptr;
 
     bool mInCommandMode = false;
 
-    std::vector<FxScriptExternalFunc> mExternalFuncs;
+    std::vector<FoxExternalFunc> mExternalFuncs;
 
-    FxMPPagedArray<FxScriptScope> mScopes;
-    FxScriptScope* mCurrentScope = nullptr;
+    FoxMPPagedArray<FoxScope> mScopes;
+    FoxScope* mCurrentScope = nullptr;
 };
 
 #endif
@@ -985,10 +1006,10 @@ private:
 /////////////////////////////////////
 
 
-class FxScriptTranspilerX86
+class FoxTranspilerX86
 {
 public:
-    FxScriptTranspilerX86(FxMPPagedArray<uint8>& bytecode)
+    FoxTranspilerX86(FoxMPPagedArray<uint8>& bytecode)
     {
         mBytecode = bytecode;
         mBytecode.DoNotDestroy = true;
@@ -1018,12 +1039,12 @@ private:
 private:
     uint32 mBytecodeIndex = 0;
 
-    uint32 mSizePushedInAction = 0;
-    bool mIsInAction = false;
+    uint32 mSizePushedInFunction = 0;
+    bool mIsInFunction = false;
 
     int mTextIndent = 0;
 
-    FxMPPagedArray<uint8> mBytecode;
+    FoxMPPagedArray<uint8> mBytecode;
 };
 
 
@@ -1032,13 +1053,15 @@ private:
 ////////////////////////////////////////////
 
 
-class FxScriptIREmitter
+#include "FoxScriptBytecode.hpp"
+
+class FoxIREmitter
 {
 public:
-    FxScriptIREmitter() = default;
+    FoxIREmitter() = default;
 
-    void BeginEmitting(FxAstNode* node);
-    void Emit(FxAstNode* node);
+    void BeginEmitting(FoxAstNode* node);
+    void Emit(FoxAstNode* node);
 
     enum RhsMode
     {
@@ -1052,12 +1075,9 @@ public:
         RHS_ASSIGN_TO_HANDLE,
     };
 
-    static FxScriptRegister RegFlagToReg(FxScriptRegisterFlag reg_flag);
-    static FxScriptRegisterFlag RegToRegFlag(FxScriptRegister reg);
+    static const char* GetRegisterName(FoxIRRegister reg);
 
-    static const char* GetRegisterName(FxScriptRegister reg);
-
-    FxMPPagedArray<uint8> mBytecode {};
+    FoxMPPagedArray<uint8> mBytecode {};
 
     enum VarDeclareMode
     {
@@ -1067,88 +1087,100 @@ public:
 
 
 private:
-    void EmitBlock(FxAstBlock* block);
-    void EmitAction(FxAstActionDecl* action);
-    void DoActionCall(FxAstActionCall* call);
-    FxScriptBytecodeVarHandle* DoVarDeclare(FxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
-    void EmitAssign(FxAstAssign* assign);
-    FxScriptBytecodeVarHandle* DefineAndFetchParam(FxAstNode* param_decl_node);
-    FxScriptBytecodeVarHandle* DefineReturnVar(FxAstVarDecl* decl);
+    void EmitBlock(FoxAstBlock* block);
+    void EmitFunction(FoxAstFunctionDecl* function);
+    void DoFunctionCall(FoxAstFunctionCall* call);
+    FoxBytecodeVarHandle* DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
+    void EmitAssign(FoxAstAssign* assign);
+    FoxBytecodeVarHandle* DefineAndFetchParam(FoxAstNode* param_decl_node);
+    FoxBytecodeVarHandle* DefineReturnVar(FoxAstVarDecl* decl);
 
-    FxScriptRegister EmitVarFetch(FxAstVarRef* ref, RhsMode mode);
+    FoxIRRegister EmitVarFetch(FoxAstVarRef* ref, RhsMode mode);
 
-    void DoLoad(uint32 stack_offset, FxScriptRegister output_reg, bool force_absolute = false);
+    uint16 GetSizeOfType(FoxTokenizer::Token* type);
+
+    void DoLoad(uint32 stack_offset, FoxIRRegister output_reg, bool force_absolute = false);
     void DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute = false);
-    void DoSaveReg32(uint32 stack_offset, FxScriptRegister reg, bool force_absolute = false);
+    void DoSaveReg32(uint32 stack_offset, FoxIRRegister reg, bool force_absolute = false);
 
     void EmitPush32(uint32 value);
-    void EmitPush32r(FxScriptRegister reg);
+    void EmitPush32r(FoxIRRegister reg);
 
-    void EmitPop32(FxScriptRegister output_reg);
+    void EmitStackAlloc(uint16 size);
 
-    void EmitLoad32(int offset, FxScriptRegister output_reg);
-    void EmitLoadAbsolute32(uint32 position, FxScriptRegister output_reg);
+    void EmitPop32(FoxIRRegister output_reg);
+
+    void EmitLoad32(int offset, FoxIRRegister output_reg);
+    void EmitLoadAbsolute32(uint32 position, FoxIRRegister output_reg);
 
     void EmitSave32(int16 offset, uint32 value);
-    void EmitSaveReg32(int16 offset, FxScriptRegister reg);
+    void EmitSaveReg32(int16 offset, FoxIRRegister reg);
 
     void EmitSaveAbsolute32(uint32 offset, uint32 value);
-    void EmitSaveAbsoluteReg32(uint32 offset, FxScriptRegister reg);
+    void EmitSaveAbsoluteReg32(uint32 offset, FoxIRRegister reg);
 
     void EmitJumpRelative(uint16 offset);
     void EmitJumpAbsolute(uint32 position);
-    void EmitJumpAbsoluteReg32(FxScriptRegister reg);
+    void EmitJumpAbsoluteReg32(FoxIRRegister reg);
     void EmitJumpCallAbsolute(uint32 position);
     void EmitJumpReturnToCaller();
-    void EmitJumpCallExternal(FxHash hashed_name);
+    void EmitJumpCallExternal(FoxHash hashed_name);
 
-    void EmitMoveInt32(FxScriptRegister reg, uint32 value);
+    void EmitVariableGetInt32(uint16 var_index, FoxIRRegister dest_reg);
+    void EmitVariableSetInt32(uint16 var_index, int32 value);
+    void EmitVariableSetReg32(uint16 var_index, FoxIRRegister reg);
+
+    void EmitMoveInt32(FoxIRRegister reg, uint32 value);
 
     void EmitParamsStart();
-    void EmitType(FxScriptValue::ValueType type);
+    void EmitType(FoxValue::ValueType type);
 
     uint32 EmitDataString(char* str, uint16 length);
 
-    FxScriptRegister EmitBinop(FxAstBinop* binop, FxScriptBytecodeVarHandle* handle);
+    FoxIRRegister EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle);
 
-    FxScriptRegister EmitRhs(FxAstNode* rhs, RhsMode mode, FxScriptBytecodeVarHandle* handle);
+    FoxIRRegister EmitRhs(FoxAstNode* rhs, RhsMode mode, FoxBytecodeVarHandle* handle);
 
-    FxScriptRegister EmitLiteralInt(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle);
-    FxScriptRegister EmitLiteralString(FxAstLiteral* literal, RhsMode mode, FxScriptBytecodeVarHandle* handle);
+    FoxIRRegister EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle);
+    FoxIRRegister EmitLiteralString(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle);
 
+    void EmitMarker(IrSpecMarker spec);
 
     void WriteOp(uint8 base_op, uint8 spec_op);
     void Write16(uint16 value);
     void Write32(uint32 value);
 
-    FxScriptRegister FindFreeRegister();
+    FoxIRRegister FindFreeReg32();
+    FoxIRRegister FindFreeReg64();
 
-    FxScriptBytecodeVarHandle* FindVarHandle(FxHash hashed_name);
-    FxScriptBytecodeActionHandle* FindActionHandle(FxHash hashed_name);
+    FoxBytecodeVarHandle* FindVarHandle(FoxHash hashed_name);
+    FoxBytecodeFunctionHandle* FindFunctionHandle(FoxHash hashed_name);
 
     void PrintBytecode();
 
-    void MarkRegisterUsed(FxScriptRegister reg);
-    void MarkRegisterFree(FxScriptRegister reg);
+    void MarkRegisterUsed(FoxIRRegister reg);
+    void MarkRegisterFree(FoxIRRegister reg);
 
 public:
-    FxMPPagedArray<FxScriptBytecodeVarHandle> VarHandles;
-    std::vector<FxScriptBytecodeActionHandle> ActionHandles;
+    FoxMPPagedArray<FoxBytecodeVarHandle> VarHandles;
+    std::vector<FoxBytecodeFunctionHandle> FunctionHandles;
 
 private:
-    FxScriptRegisterFlag mRegsInUse = FX_REGFLAG_NONE;
+    FoxRegisterFlag mRegsInUse = FX_REGFLAG_NONE;
 
     int64 mStackOffset = 0;
     uint32 mStackSize = 0;
+
+    uint16 mVarsInScope = 0;
 
     uint16 mScopeIndex = 0;
 };
 
 
-class FxScriptIRPrinter
+class FoxIRPrinter
 {
 public:
-    FxScriptIRPrinter(FxMPPagedArray<uint8>& bytecode)
+    FoxIRPrinter(FoxMPPagedArray<uint8>& bytecode)
     {
         mBytecode = bytecode;
         mBytecode.DoNotDestroy = true;
@@ -1171,8 +1203,10 @@ private:
     void DoData(char* s, uint8 op_base, uint8 op_spec);
     void DoType(char* s, uint8 op_base, uint8 op_spec);
     void DoMove(char* s, uint8 op_base, uint8 op_spec);
+    void DoMarker(char* s, uint8 op_base, uint8 op_spec);
+    void DoVariable(char* s, uint8 op_base, uint8 op_spec);
 
 private:
     uint32 mBytecodeIndex = 0;
-    FxMPPagedArray<uint8> mBytecode;
+    FoxMPPagedArray<uint8> mBytecode;
 };

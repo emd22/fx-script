@@ -1,14 +1,14 @@
 #pragma once
 
-#include "FxScriptUtil.hpp"
-#include "FxMPPagedArray.hpp"
+#include "FoxMPPagedArray.hpp"
+#include "FoxScriptUtil.hpp"
 
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include <cassert>
 #include <string>
 
-class FxTokenizer
+class FoxTokenizer
 {
 private:
 public:
@@ -25,7 +25,8 @@ public:
     };
 
 
-    enum TokenType {
+    enum TokenType
+    {
         Unknown,
         Identifier,
 
@@ -60,33 +61,23 @@ public:
     static const char* GetTypeName(TokenType type)
     {
         const char* type_names[] = {
-            "Unknown",
-            "Identifier",
+            "Unknown",    "Identifier",
 
-            "String",
-            "Integer",
-            "Float",
+            "String",     "Integer",    "Float",
 
             "Equals",
 
-            "LParen",
-            "RParen",
+            "LParen",     "RParen",
 
-            "LBracket",
-            "RBracket",
+            "LBracket",   "RBracket",
 
-            "LBrace",
-            "RBrace",
+            "LBrace",     "RBrace",
 
-            "Plus",
-            "Dollar",
-            "Minus",
+            "Plus",       "Dollar",     "Minus",
 
             "Question",
 
-            "Dot",
-            "Comma",
-            "Semicolon",
+            "Dot",        "Comma",      "Semicolon",
 
             "DocComment",
         };
@@ -98,10 +89,11 @@ public:
         return type_names[type];
     }
 
-    enum class IsNumericResult {
+    enum class IsNumericResult
+    {
         NaN,
         Integer,
-        Fractional
+        Frfunctional
     };
 
     struct Token
@@ -109,14 +101,14 @@ public:
         char* Start = nullptr;
         char* End = nullptr;
 
-        FxHash Hash = 0;
+        FoxHash Hash = 0;
         TokenType Type = TokenType::Unknown;
         uint32 Length = 0;
 
         uint16 FileColumn = 0;
         uint32 FileLine = 0;
 
-        void Print(bool no_newline=false) const
+        void Print(bool no_newline = false) const
         {
             printf("Token: (T:%-10s) {%.*s} %c", GetTypeName(Type), Length, Start, (no_newline) ? ' ' : '\n');
         }
@@ -136,7 +128,7 @@ public:
             char* str = static_cast<char*>(FX_SCRIPT_ALLOC_MEMORY(char, (Length + 1)));
 
             if (str == nullptr) {
-                FxPanic("FxTokenizer", "Error allocating heap string!", 0);
+                FoxPanic("FoxTokenizer", "Error allocating heap string!", 0);
                 return nullptr;
             }
 
@@ -146,12 +138,12 @@ public:
             return str;
         }
 
-        FxHash GetHash()
+        FoxHash GetHash()
         {
             if (Hash != 0) {
                 return Hash;
             }
-            return (Hash = FxHashStr(Start, Length));
+            return (Hash = FoxHashStr(Start, Length));
         }
 
         IsNumericResult IsNumeric() const
@@ -163,13 +155,13 @@ public:
             for (int i = 0; i < Length; i++) {
                 ch = Start[i];
 
-                // If there is a number preceding the dot then we are a fractional
+                // If there is a number preceding the dot then we are a frfunctional
                 if (ch == '.' && result != IsNumericResult::NaN) {
-                    result = IsNumericResult::Fractional;
+                    result = IsNumericResult::Frfunctional;
                     continue;
                 }
 
-                if ((ch >= '0' && ch <= '9') ) {
+                if ((ch >= '0' && ch <= '9')) {
                     // If no numbers have been found yet then set to integer
                     if (result == IsNumericResult::NaN) {
                         result = IsNumericResult::Integer;
@@ -188,7 +180,7 @@ public:
         int64 ToInt() const
         {
             char buffer[32];
-            
+
             std::strncpy(buffer, Start, Length);
             buffer[Length] = 0;
 
@@ -206,7 +198,7 @@ public:
             return strtof(buffer, &end);
         }
 
-        bool operator == (const char* str) const
+        bool operator==(const char* str) const
         {
             return !strncmp(Start, str, Length);
         }
@@ -224,10 +216,9 @@ public:
         }
     };
 
-    FxTokenizer() = delete;
+    FoxTokenizer() = delete;
 
-    FxTokenizer(char* data, uint32 buffer_size)
-        : mData(data), mDataEnd(data + buffer_size), mStartOfLine(data)
+    FoxTokenizer(char* data, uint32 buffer_size) : mData(data), mDataEnd(data + buffer_size), mStartOfLine(data)
     {
     }
 
@@ -242,7 +233,7 @@ public:
         switch (is_numeric) {
         case IsNumericResult::Integer:
             return TokenType::Integer;
-        case IsNumericResult::Fractional:
+        case IsNumericResult::Frfunctional:
             return TokenType::Float;
         case IsNumericResult::NaN:
             break;
@@ -366,7 +357,8 @@ public:
         }
 
         // Skip spaces and tabs
-        while ((ch = *(data)) && (ch == ' ' || ch == '\t')) ++data;
+        while ((ch = *(data)) && (ch == ' ' || ch == '\t'))
+            ++data;
 
         // Check if this is a string
         if (ch != '"') {
@@ -429,7 +421,7 @@ public:
 
     void IncludeFile(char* path)
     {
-        FILE* fp = FxUtil::FileOpen(path, "rb");
+        FILE* fp = FoxUtil::FileOpen(path, "rb");
         if (!fp) {
             printf("Could not open include file '%s'\n", path);
             return;
@@ -451,7 +443,7 @@ public:
         // Restore back to previous state
         RestoreState();
 
-        //FxMemPool::Free(include_data);
+        // FoxMemPool::Free(include_data);
     }
 
     void TryReadInternalCall()
@@ -619,7 +611,7 @@ public:
         return (token.Start - mData);
     }
 
-    FxMPPagedArray<Token>& GetTokens()
+    FoxMPPagedArray<Token>& GetTokens()
     {
         return mTokens;
     }
@@ -642,7 +634,6 @@ public:
 
         mFileLine = mSavedState.FileLine;
         mStartOfLine = mSavedState.StartOfLine;
-
     }
 
 private:
@@ -662,5 +653,5 @@ private:
     uint32 mFileLine = 0;
     char* mStartOfLine = nullptr;
 
-    FxMPPagedArray<Token> mTokens;
+    FoxMPPagedArray<Token> mTokens;
 };

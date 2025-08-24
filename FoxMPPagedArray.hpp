@@ -1,12 +1,12 @@
 #pragma once
 
-#include "FxScriptUtil.hpp"
+#include "FoxScriptUtil.hpp"
 
-#include <cstdlib>
 #include <cassert>
+#include <cstdlib>
 
 template <typename ElementType>
-class FxMPPagedArray
+class FoxMPPagedArray
 {
 public:
     struct Page
@@ -28,14 +28,12 @@ public:
         // {
         // }
 
-        Iterator(Page* current_page, uint32 index)
-            : mCurrentPage(current_page), mCurrentIndex(index)
+        Iterator(Page* current_page, uint32 index) : mCurrentPage(current_page), mCurrentIndex(index)
         {
         }
 
-        Iterator& operator ++ ()
+        Iterator& operator++()
         {
-
             ++mCurrentIndex;
 
             if (mCurrentIndex > mCurrentPage->Size) {
@@ -46,7 +44,7 @@ public:
             return *this;
         }
 
-        Iterator operator ++ (int)
+        Iterator operator++(int)
         {
             Iterator iterator = *this;
             ++*this;
@@ -54,9 +52,8 @@ public:
             return iterator;
         }
 
-        Iterator& operator -- ()
+        Iterator& operator--()
         {
-
             if (mCurrentIndex == 0) {
                 mCurrentPage = mCurrentPage->Prev;
                 mCurrentIndex = mCurrentPage->Size;
@@ -67,12 +64,12 @@ public:
             return *this;
         }
 
-        ElementType& operator * ()
+        ElementType& operator*()
         {
             return mCurrentPage->Data[mCurrentIndex];
         }
 
-        bool operator != (const Iterator& other)
+        bool operator!=(const Iterator& other)
         {
             return mCurrentPage && (mCurrentPage != other.mCurrentPage || mCurrentIndex != other.mCurrentIndex);
         }
@@ -81,14 +78,14 @@ public:
         uint32 mCurrentIndex = 0;
     };
 
-    FxMPPagedArray() = default;
+    FoxMPPagedArray() = default;
 
-    FxMPPagedArray(uint32 page_node_capacity)
+    FoxMPPagedArray(uint32 page_node_capacity)
     {
         Create(page_node_capacity);
     }
 
-    FxMPPagedArray& operator = (const FxMPPagedArray& other)
+    FoxMPPagedArray& operator=(const FoxMPPagedArray& other)
     {
         FirstPage = other.FirstPage;
         CurrentPage = other.CurrentPage;
@@ -101,7 +98,7 @@ public:
         return *this;
     }
 
-    FxMPPagedArray& operator = (FxMPPagedArray&& other)
+    FoxMPPagedArray& operator=(FoxMPPagedArray&& other)
     {
         FirstPage = other.FirstPage;
         CurrentPage = other.CurrentPage;
@@ -149,7 +146,7 @@ public:
 
     inline size_t Size() const
     {
-        //return GetCalculatedSize();
+        // return GetCalculatedSize();
         return TrackedSize;
     }
 
@@ -318,7 +315,7 @@ public:
     }
 
 
-    ElementType& operator [] (size_t index)
+    ElementType& operator[](size_t index)
     {
         return Get(index);
     }
@@ -381,7 +378,7 @@ public:
         CurrentPage = nullptr;
     }
 
-    ~FxMPPagedArray()
+    ~FoxMPPagedArray()
     {
         if (FirstPage == nullptr) {
             return;
@@ -396,7 +393,7 @@ private:
         // Allocate and initialize the page object
         void* allocated_page = std::malloc(sizeof(Page));
         if (allocated_page == nullptr) {
-            FxPanic("FxPagedArray", "Memory error allocating page", 0);
+            FoxPanic("FoxPagedArray", "Memory error allocating page", 0);
             return nullptr; // for msvc
         }
 
@@ -410,7 +407,7 @@ private:
         void* allocated_nodes = FX_SCRIPT_ALLOC_MEMORY(ElementType, (sizeof(ElementType) * PageNodeCapacity));
 
         if (allocated_nodes == nullptr) {
-            FxPanic("FxPagedArray", "Memory error allocating page data", 0);
+            FoxPanic("FoxPagedArray", "Memory error allocating page data", 0);
             return nullptr; // for msvc
         }
 
@@ -424,7 +421,7 @@ private:
     inline void SizeCheck(uint32 size) const
     {
         if (size > PageNodeCapacity) {
-            FxPanic("FxPagedArray", "The current size of a page is greater than the allocated page node capacity!", 0);
+            FoxPanic("FoxPagedArray", "The current size of a page is greater than the allocated page node capacity!", 0);
         }
     }
 
