@@ -1210,3 +1210,51 @@ private:
     uint32 mBytecodeIndex = 0;
     FoxMPPagedArray<uint8> mBytecode;
 };
+
+
+struct FoxIRArm64Frame
+{
+    uint32 StackAllocated = 0;
+};
+
+
+class FoxIRToArm64
+{
+public:
+    FoxIRToArm64(FoxMPPagedArray<uint8>& bytecode)
+    {
+        mBytecode = bytecode;
+        mBytecode.DoNotDestroy = true;
+    }
+
+    void Print();
+    void PrintOp();
+
+
+private:
+    uint16 Read16();
+    uint32 Read32();
+
+    void DoPush(char* s, uint8 op_base, uint8 op_spec);
+    void DoPop(char* s, uint8 op_base, uint8 op_spec);
+    void DoLoad(char* s, uint8 op_base, uint8 op_spec);
+    void DoArith(char* s, uint8 op_base, uint8 op_spec);
+    void DoSave(char* s, uint8 op_base, uint8 op_spec);
+    void DoJump(char* s, uint8 op_base, uint8 op_spec);
+    void DoData(char* s, uint8 op_base, uint8 op_spec);
+    void DoType(char* s, uint8 op_base, uint8 op_spec);
+    void DoMove(char* s, uint8 op_base, uint8 op_spec);
+    void DoMarker(char* s, uint8 op_base, uint8 op_spec);
+    void DoVariable(char* s, uint8 op_base, uint8 op_spec);
+
+private:
+    void ResetFrame();
+
+    uint32 MakeValueFactorOf16(uint32 value);
+
+private:
+    uint32 mBytecodeIndex = 0;
+    FoxMPPagedArray<uint8> mBytecode;
+
+    FoxIRArm64Frame CurrentFrame;
+};

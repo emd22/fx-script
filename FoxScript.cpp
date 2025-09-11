@@ -374,6 +374,12 @@ void FoxConfigScript::Execute(FoxVM& vm)
 
     ir_printer.Print();
 
+    printf("\n=====\n");
+
+    FoxIRToArm64 ir_to_arm64(ir_emitter.mBytecode);
+
+    ir_to_arm64.Print();
+
 
 #if 0
     FoxBCEmitter emitter;
@@ -2213,7 +2219,7 @@ void FoxBCPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == OpSpecJump_Relative) {
         uint16 offset = Read16();
-        printf("# jump relative to (%u)\n", mBytecodeIndex + offset);
+        printf("// jump relative to (%u)\n", mBytecodeIndex + offset);
         BC_PRINT_OP("jmpr %d", offset);
     }
     else if (op_spec == OpSpecJump_Absolute) {
@@ -2332,7 +2338,7 @@ void FoxBCPrinter::PrintOp()
 
     printf("%-25s", s);
 
-    printf("\t# Offset: %u\n", bc_index);
+    printf("\t// Offset: %u\n", bc_index);
 }
 
 
@@ -3464,13 +3470,13 @@ FoxIRRegister FoxIREmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
 {
     FoxBytecodeVarHandle* var_handle = FindVarHandle(ref->Name->GetHash());
 
-    bool force_absolute_load = false;
+    // bool force_absolute_load = false;
 
     // If the variable is from a previous scope, load it from an absolute address. local offsets
     // will change depending on where they are called.
-    if (var_handle->ScopeIndex < mScopeIndex) {
-        force_absolute_load = true;
-    }
+    // if (var_handle->ScopeIndex < mScopeIndex) {
+    //     force_absolute_load = true;
+    // }
 
     if (!var_handle) {
         printf("Could not find var handle!");
@@ -3626,7 +3632,7 @@ FoxIRRegister FoxIREmitter::EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode,
     }
 
     else if (mode == RhsMode::RHS_ASSIGN_TO_HANDLE) {
-        const bool force_absolute_save = (handle->ScopeIndex < mScopeIndex);
+        // const bool force_absolute_save = (handle->ScopeIndex < mScopeIndex);
         // DoSaveInt32(handle->Offset, literal->Value.ValueInt, force_absolute_save);
         EmitVariableSetInt32(handle->VarIndexInScope, literal->Value.ValueInt);
 
@@ -3760,7 +3766,7 @@ FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode,
             return output_reg;
         }
         else if (mode == IRRhsMode::RHS_ASSIGN_TO_HANDLE) {
-            const bool force_absolute_save = (handle->ScopeIndex < mScopeIndex);
+            // const bool force_absolute_save = (handle->ScopeIndex < mScopeIndex);
 
             // Save the value back to the variable
             // DoSaveReg32(handle->Offset, result_register, force_absolute_save);
@@ -3781,24 +3787,24 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
 
     // const uint16 size_of_type = static_cast<uint16>(sizeof(int32));
 
-    const FoxHash type_int = FoxHashStr("int");
-    const FoxHash type_string = FoxHashStr("string");
+    // const FoxHash type_int = FoxHashStr("int");
+    // const FoxHash type_string = FoxHashStr("string");
 
     FoxHash decl_hash = decl->Name->GetHash();
-    FoxHash type_hash = decl->Type->GetHash();
+    // FoxHash type_hash = decl->Type->GetHash();
 
-    FoxValue::ValueType value_type = FoxValue::INT;
+    // FoxValue::ValueType value_type = FoxValue::INT;
 
-    switch (type_hash) {
-    case type_int:
-        value_type = FoxValue::INT;
-        break;
-    case type_string:
-        value_type = FoxValue::STRING;
-        break;
-    };
+    // switch (type_hash) {
+    // case type_int:
+    //     value_type = FoxValue::INT;
+    //     break;
+    // case type_string:
+    //     value_type = FoxValue::STRING;
+    //     break;
+    // };
 
-    const uint16 size_of_type = GetSizeOfType(decl->Type);
+    // const uint16 size_of_type = GetSizeOfType(decl->Type);
 
     // FoxBytecodeVarHandle handle {
     //     .HashedName = decl_hash,
@@ -4024,9 +4030,6 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block)
 {
     RETURN_IF_NO_NODE(block);
 
-    EmitMarker(IrSpecMarker_FrameBegin);
-
-
     // For each var declared in the block, write a stack allocation in the frame header
     for (FoxAstNode* node : block->Statements) {
         if (node->NodeType == FX_AST_VARDECL) {
@@ -4050,6 +4053,10 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block)
             ++mVarsInScope;
         }
     }
+
+    // After the stack allocations, mark the start of the frame.
+    EmitMarker(IrSpecMarker_FrameBegin);
+
 
     for (FoxAstNode* node : block->Statements) {
         Emit(node);
@@ -4113,11 +4120,11 @@ void FoxIRPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 
     if (op_spec == IrSpecLoad_Int32) {
         int16 offset = Read16();
-        BC_PRINT_OP("load32 %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        BC_PRINT_OP("load [i32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
     else if (op_spec == IrSpecLoad_AbsoluteInt32) {
         uint32 offset = Read32();
-        BC_PRINT_OP("load32a %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        BC_PRINT_OP("loada [i32] %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
@@ -4125,11 +4132,11 @@ void FoxIRPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecPush_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("push32 %u", value);
+        BC_PRINT_OP("push [i32] %u", value);
     }
     else if (op_spec == IrSpecPush_Reg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("push32r %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("push [r32] %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecPush_StackAlloc) {
         uint16 size = Read16();
@@ -4143,7 +4150,7 @@ void FoxIRPrinter::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == IrSpecPop_Int32) {
-        BC_PRINT_OP("pop32 %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        BC_PRINT_OP("pop [i32] %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
@@ -4153,7 +4160,7 @@ void FoxIRPrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
     uint8 b_reg = mBytecode[mBytecodeIndex++];
 
     if (op_spec == IrSpecArith_Add) {
-        BC_PRINT_OP("add32 %s, %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
+        BC_PRINT_OP("add [i32] %s, %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
                     FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
     }
 }
@@ -4165,7 +4172,7 @@ void FoxIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const int16 offset = Read16();
         const uint32 value = Read32();
 
-        BC_PRINT_OP("save32 %d, %u", offset, value);
+        BC_PRINT_OP("save [i32] %d, %u", offset, value);
     }
 
     // Save a register into an offset in the stack
@@ -4173,19 +4180,19 @@ void FoxIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const int16 offset = Read16();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save32r %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("save [r32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecSave_AbsoluteInt32) {
         const uint32 offset = Read32();
         const uint32 value = Read32();
 
-        BC_PRINT_OP("save32a %u, %u", offset, value);
+        BC_PRINT_OP("savea [i32] %u, %u", offset, value);
     }
     else if (op_spec == IrSpecSave_AbsoluteReg32) {
         const uint32 offset = Read32();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save32ar %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("savea [r32] %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
 }
 
@@ -4193,7 +4200,7 @@ void FoxIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecJump_Relative) {
         uint16 offset = Read16();
-        printf("# jump relative to (%u)\n", mBytecodeIndex + offset);
+        printf("// jump relative to (%u)\n", mBytecodeIndex + offset);
         BC_PRINT_OP("jmpr %d", offset);
     }
     else if (op_spec == IrSpecJump_Absolute) {
@@ -4241,10 +4248,10 @@ void FoxIRPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
 void FoxIRPrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecType_Int) {
-        BC_PRINT_OP("typeint");
+        BC_PRINT_OP("type int");
     }
     else if (op_spec == IrSpecType_String) {
-        BC_PRINT_OP("typestr");
+        BC_PRINT_OP("type str");
     }
 }
 
@@ -4255,7 +4262,7 @@ void FoxIRPrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 
     if (op_spec == IrSpecMove_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("move32 %s, %u\t", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
+        BC_PRINT_OP("move [i32] %s, %u\t", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
     }
 }
 
@@ -4278,17 +4285,17 @@ void FoxIRPrinter::DoVariable(char* s, uint8 op_base, uint8 op_spec)
     if (op_spec == IrSpecVariable_Get_Int32) {
         uint16 var_index = Read16();
         FoxIRRegister dest_reg = static_cast<FoxIRRegister>(Read16());
-        BC_PRINT_OP("vget $%d, %s", var_index, FoxIREmitter::GetRegisterName(dest_reg));
+        BC_PRINT_OP("vget [i32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(dest_reg));
     }
     else if (op_spec == IrSpecVariable_Set_Int32) {
         uint16 var_index = Read16();
         uint32 value = Read32();
-        BC_PRINT_OP("vset $%d, %d", var_index, value);
+        BC_PRINT_OP("vset [i32] $%d, %d", var_index, value);
     }
     else if (op_spec == IrSpecVariable_Set_Reg32) {
         uint16 var_index = Read16();
         FoxIRRegister reg = static_cast<FoxIRRegister>(Read16());
-        BC_PRINT_OP("vset $%d, %s", var_index, FoxIREmitter::GetRegisterName(reg));
+        BC_PRINT_OP("vset [r32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(reg));
     }
 }
 
@@ -4349,5 +4356,298 @@ void FoxIRPrinter::PrintOp()
 
     printf("%-25s", s);
 
-    printf("\t# Offset: %u\n", bc_index);
+    printf("\t// Offset: %u\n", bc_index);
+}
+
+
+/////////////////////////////////////
+// FxIRToArm64
+/////////////////////////////////////
+
+uint16 FoxIRToArm64::Read16()
+{
+    uint8 lo = mBytecode[mBytecodeIndex++];
+    uint8 hi = mBytecode[mBytecodeIndex++];
+
+    return ((static_cast<uint16>(lo) << 8) | hi);
+}
+
+uint32 FoxIRToArm64::Read32()
+{
+    uint16 lo = Read16();
+    uint16 hi = Read16();
+
+    return ((static_cast<uint32>(lo) << 16) | hi);
+}
+
+#define BC_PRINT_OP(fmt_, ...) snprintf(s, 128, fmt_, ##__VA_ARGS__)
+
+void FoxIRToArm64::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
+{
+    uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
+    uint8 op_reg = (op_spec_raw & 0x0F);
+
+    if (op_spec == IrSpecLoad_Int32) {
+        int16 offset = Read16();
+        BC_PRINT_OP("load [i32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+    }
+    else if (op_spec == IrSpecLoad_AbsoluteInt32) {
+        uint32 offset = Read32();
+        BC_PRINT_OP("loada [i32] %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+    }
+}
+
+void FoxIRToArm64::DoPush(char* s, uint8 op_base, uint8 op_spec)
+{
+    if (op_spec == IrSpecPush_Int32) {
+        uint32 value = Read32();
+        BC_PRINT_OP("push [i32] %u", value);
+    }
+    else if (op_spec == IrSpecPush_Reg32) {
+        uint16 reg = Read16();
+        BC_PRINT_OP("push [r32] %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+    }
+    else if (op_spec == IrSpecPush_StackAlloc) {
+        uint16 size = Read16();
+
+        CurrentFrame.StackAllocated += size;
+
+        BC_PRINT_OP("salloc %d", size);
+    }
+}
+
+void FoxIRToArm64::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
+{
+    uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
+    uint8 op_reg = (op_spec_raw & 0x0F);
+
+    if (op_spec == IrSpecPop_Int32) {
+        BC_PRINT_OP("pop [i32] %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+    }
+}
+
+void FoxIRToArm64::DoArith(char* s, uint8 op_base, uint8 op_spec)
+{
+    uint8 a_reg = mBytecode[mBytecodeIndex++];
+    uint8 b_reg = mBytecode[mBytecodeIndex++];
+
+    if (op_spec == IrSpecArith_Add) {
+        BC_PRINT_OP("add [i32] %s, %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
+                    FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
+    }
+}
+
+void FoxIRToArm64::DoSave(char* s, uint8 op_base, uint8 op_spec)
+{
+    // Save a imm32 into an offset in the stack
+    if (op_spec == IrSpecSave_Int32) {
+        const int16 offset = Read16();
+        const uint32 value = Read32();
+
+        BC_PRINT_OP("save [i32] %d, %u", offset, value);
+    }
+
+    // Save a register into an offset in the stack
+    else if (op_spec == IrSpecSave_Reg32) {
+        const int16 offset = Read16();
+        uint16 reg = Read16();
+
+        BC_PRINT_OP("save [r32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+    }
+    else if (op_spec == IrSpecSave_AbsoluteInt32) {
+        const uint32 offset = Read32();
+        const uint32 value = Read32();
+
+        BC_PRINT_OP("savea [i32] %u, %u", offset, value);
+    }
+    else if (op_spec == IrSpecSave_AbsoluteReg32) {
+        const uint32 offset = Read32();
+        uint16 reg = Read16();
+
+        BC_PRINT_OP("savea [r32] %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+    }
+}
+
+void FoxIRToArm64::DoJump(char* s, uint8 op_base, uint8 op_spec)
+{
+    if (op_spec == IrSpecJump_Relative) {
+        uint16 offset = Read16();
+        printf("// jump relative to (%u)\n", mBytecodeIndex + offset);
+        BC_PRINT_OP("jmpr %d", offset);
+    }
+    else if (op_spec == IrSpecJump_Absolute) {
+        uint32 position = Read32();
+        BC_PRINT_OP("jmpa %u", position);
+    }
+    else if (op_spec == IrSpecJump_AbsoluteReg32) {
+        uint16 reg = Read16();
+        BC_PRINT_OP("jmpar %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+    }
+    else if (op_spec == IrSpecJump_CallAbsolute) {
+        uint32 position = Read32();
+        BC_PRINT_OP("calla %u", position);
+    }
+    else if (op_spec == IrSpecJump_ReturnToCaller) {
+        BC_PRINT_OP("ret");
+    }
+    else if (op_spec == IrSpecJump_CallExternal) {
+        uint32 hashed_name = Read32();
+        BC_PRINT_OP("callext %u", hashed_name);
+    }
+}
+
+
+void FoxIRToArm64::DoData(char* s, uint8 op_base, uint8 op_spec)
+{
+    if (op_spec == IrSpecData_String) {
+        uint16 length = Read16();
+        char* data_str = FX_SCRIPT_ALLOC_MEMORY(char, length);
+        uint16* data_str16 = reinterpret_cast<uint16*>(data_str);
+
+        uint32 bytecode_end = mBytecodeIndex + length;
+        int data_index = 0;
+        while (mBytecodeIndex < bytecode_end) {
+            uint16 value16 = Read16();
+            data_str16[data_index++] = ((value16 << 8) | (value16 >> 8));
+        }
+
+        BC_PRINT_OP("datastr %d, %.*s", length, length, data_str);
+
+        FX_SCRIPT_FREE(char, data_str);
+    }
+}
+
+void FoxIRToArm64::DoType(char* s, uint8 op_base, uint8 op_spec)
+{
+    if (op_spec == IrSpecType_Int) {
+        BC_PRINT_OP("type int");
+    }
+    else if (op_spec == IrSpecType_String) {
+        BC_PRINT_OP("type str");
+    }
+}
+
+void FoxIRToArm64::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
+{
+    uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
+    uint8 op_reg = (op_spec_raw & 0x0F);
+
+    if (op_spec == IrSpecMove_Int32) {
+        uint32 value = Read32();
+        BC_PRINT_OP("move [i32] %s, %u\t", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
+    }
+}
+
+void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
+{
+    if (op_spec == IrSpecMarker_FrameBegin) {
+        CurrentFrame.StackAllocated = MakeValueFactorOf16(CurrentFrame.StackAllocated);
+        BC_PRINT_OP("sub sp, sp, #%u", CurrentFrame.StackAllocated);
+    }
+    else if (op_spec == IrSpecMarker_FrameEnd) {
+        BC_PRINT_OP("add sp, sp, #%u", CurrentFrame.StackAllocated);
+        // Reset the current stack frame
+        ResetFrame();
+    }
+    else if (op_spec == IrSpecMarker_ParamsBegin) {
+        BC_PRINT_OP("params begin");
+    }
+}
+
+
+void FoxIRToArm64::DoVariable(char* s, uint8 op_base, uint8 op_spec)
+{
+    if (op_spec == IrSpecVariable_Get_Int32) {
+        uint16 var_index = Read16();
+        FoxIRRegister dest_reg = static_cast<FoxIRRegister>(Read16());
+        BC_PRINT_OP("vget [i32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(dest_reg));
+    }
+    else if (op_spec == IrSpecVariable_Set_Int32) {
+        uint16 var_index = Read16();
+        uint32 value = Read32();
+        BC_PRINT_OP("vset [i32] $%d, %d", var_index, value);
+    }
+    else if (op_spec == IrSpecVariable_Set_Reg32) {
+        uint16 var_index = Read16();
+        FoxIRRegister reg = static_cast<FoxIRRegister>(Read16());
+        BC_PRINT_OP("vset [r32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(reg));
+    }
+}
+
+
+void FoxIRToArm64::Print()
+{
+    while (mBytecodeIndex < mBytecode.Size()) {
+        PrintOp();
+    }
+}
+
+void FoxIRToArm64::PrintOp()
+{
+    uint32 bc_index = mBytecodeIndex;
+
+    uint16 op_full = Read16();
+
+    const uint8 op_base = static_cast<uint8>(op_full >> 8);
+    const uint8 op_spec = static_cast<uint8>(op_full & 0xFF);
+
+    char s[128];
+
+    switch (op_base) {
+    case IrBase_Push:
+        DoPush(s, op_base, op_spec);
+        break;
+    case IrBase_Pop:
+        DoPop(s, op_base, op_spec);
+        break;
+    case IrBase_Load:
+        DoLoad(s, op_base, op_spec);
+        break;
+    case IrBase_Arith:
+        DoArith(s, op_base, op_spec);
+        break;
+    case IrBase_Jump:
+        DoJump(s, op_base, op_spec);
+        break;
+    case IrBase_Save:
+        DoSave(s, op_base, op_spec);
+        break;
+    case IrBase_Data:
+        DoData(s, op_base, op_spec);
+        break;
+    case IrBase_Type:
+        DoType(s, op_base, op_spec);
+        break;
+    case IrBase_Move:
+        DoMove(s, op_base, op_spec);
+        break;
+    case IrBase_Marker:
+        DoMarker(s, op_base, op_spec);
+        break;
+    case IrBase_Variable:
+        DoVariable(s, op_base, op_spec);
+        break;
+    }
+
+    printf("%-25s", s);
+
+    printf("\t// Offset: %u\n", bc_index);
+}
+
+uint32 FoxIRToArm64::MakeValueFactorOf16(uint32 value)
+{
+    // Get the bottom four bits (value % 16)
+    const uint8 remainder = (value & 0x0F);
+
+    if (remainder != 0) {
+        value += (16 - remainder);
+    }
+
+    return value;
+}
+
+
+void FoxIRToArm64::ResetFrame()
+{
+    std::memset(&CurrentFrame, 0, sizeof(CurrentFrame));
 }
