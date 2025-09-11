@@ -122,7 +122,7 @@ enum IrSpecLoad : uint8
 
 enum IrSpecArith : uint8
 {
-    IrSpecArith_Add = 1 // ADD [%r32] [%r32]
+    IrSpecArith_Add_Reg32 = 1 // ADD [%r32] [%r32]
 };
 
 enum IrSpecSave : uint8

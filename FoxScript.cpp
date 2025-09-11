@@ -3453,7 +3453,7 @@ FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* 
     }
 
     if (binop->OpToken->Type == TT::Plus) {
-        WriteOp(IrBase_Arith, IrSpecArith_Add);
+        WriteOp(IrBase_Arith, IrSpecArith_Add_Reg32);
 
         mBytecode.Insert(a_reg);
         mBytecode.Insert(b_reg);
@@ -4159,7 +4159,7 @@ void FoxIRPrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
     uint8 a_reg = mBytecode[mBytecodeIndex++];
     uint8 b_reg = mBytecode[mBytecodeIndex++];
 
-    if (op_spec == IrSpecArith_Add) {
+    if (op_spec == IrSpecArith_Add_Reg32) {
         BC_PRINT_OP("add [i32] %s, %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
                     FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
     }
@@ -4412,7 +4412,7 @@ void FoxIRToArm64::DoPush(char* s, uint8 op_base, uint8 op_spec)
 
         CurrentFrame.StackAllocated += size;
 
-        BC_PRINT_OP("salloc %d", size);
+        BC_PRINT_OP("// salloc %d", size);
     }
 }
 
@@ -4428,12 +4428,17 @@ void FoxIRToArm64::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
 
 void FoxIRToArm64::DoArith(char* s, uint8 op_base, uint8 op_spec)
 {
-    uint8 a_reg = mBytecode[mBytecodeIndex++];
-    uint8 b_reg = mBytecode[mBytecodeIndex++];
+    FoxIRRegister a_reg = static_cast<FoxIRRegister>(mBytecode[mBytecodeIndex++]);
+    FoxIRRegister b_reg = static_cast<FoxIRRegister>(mBytecode[mBytecodeIndex++]);
 
-    if (op_spec == IrSpecArith_Add) {
-        BC_PRINT_OP("add [i32] %s, %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
-                    FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
+    if (op_spec == IrSpecArith_Add_Reg32) {
+        // BC_PRINT_OP("add [i32] %s, %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
+        //             FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
+
+        const char* lhs_reg = GetRegisterName(GetGeneralRegFromIR(a_reg));
+        const char* rhs_reg = GetRegisterName(GetGeneralRegFromIR(b_reg));
+
+        BC_PRINT_OP("add %s, %s, %s", lhs_reg, lhs_reg, rhs_reg);
     }
 }
 
@@ -4533,8 +4538,12 @@ void FoxIRToArm64::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == IrSpecMove_Int32) {
-        uint32 value = Read32();
-        BC_PRINT_OP("move [i32] %s, %u\t", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
+        int value = static_cast<int32>(Read32());
+        const FoxArm64Register dest_reg = GetGeneralRegFromIR(static_cast<FoxIRRegister>(op_reg));
+
+        // BC_PRINT_OP("move [i32] %s, %u\t", FoxIREmitter::GetRegisterName(), value);
+
+        BC_PRINT_OP("mov %s, #%d", GetRegisterName(dest_reg), value);
     }
 }
 
@@ -4559,18 +4568,40 @@ void FoxIRToArm64::DoVariable(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecVariable_Get_Int32) {
         uint16 var_index = Read16();
-        FoxIRRegister dest_reg = static_cast<FoxIRRegister>(Read16());
-        BC_PRINT_OP("vget [i32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(dest_reg));
+        // BC_PRINT_OP("vget [i32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(dest_reg));
+
+        const FoxIRRegister dest_ir_reg = static_cast<FoxIRRegister>(Read16());
+        const FoxArm64Register dest_reg = GetGeneralRegFromIR(dest_ir_reg);
+
+        const uint32 var_stack_offset = CurrentFrame.StackAllocated - ((var_index + 1) * 4);
+
+        BC_PRINT_OP("ldr %s, [sp, #%u]", GetRegisterName(dest_reg), var_stack_offset);
     }
     else if (op_spec == IrSpecVariable_Set_Int32) {
         uint16 var_index = Read16();
         uint32 value = Read32();
-        BC_PRINT_OP("vset [i32] $%d, %d", var_index, value);
+        // BC_PRINT_OP("vset [i32] $%d, %d", var_index, value);
+
+        FoxArm64Register reg = RegisterRequest(Usage_General);
+
+        const char* reg_name = GetRegisterName(reg);
+
+        printf("mov %s, #%d\n", reg_name, static_cast<int32>(value));
+
+        const uint32 var_stack_offset = CurrentFrame.StackAllocated - ((var_index + 1) * 4);
+
+        BC_PRINT_OP("str %s, [sp, #%u]", reg_name, var_stack_offset);
+
+        RegisterRelease(reg);
     }
     else if (op_spec == IrSpecVariable_Set_Reg32) {
         uint16 var_index = Read16();
         FoxIRRegister reg = static_cast<FoxIRRegister>(Read16());
-        BC_PRINT_OP("vset [r32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(reg));
+
+        const uint32 var_stack_offset = CurrentFrame.StackAllocated - ((var_index + 1) * 4);
+
+        BC_PRINT_OP("str %s, [sp, #%u]", GetRegisterName(GetGeneralRegFromIR(reg)), var_stack_offset);
+        // BC_PRINT_OP("vset [r32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(reg));
     }
 }
 
@@ -4646,8 +4677,103 @@ uint32 FoxIRToArm64::MakeValueFactorOf16(uint32 value)
     return value;
 }
 
+FoxArm64Register FoxIRToArm64::RegisterRequest(FoxIRToArm64::RegisterUsage usage)
+{
+    FoxArm64Register min, max;
+
+    switch (usage) {
+    case Usage_Parameters:
+        min = Fox_Arm64_W0;
+        max = Fox_Arm64_W7;
+        break;
+    case Usage_General:
+        min = Fox_Arm64_W8;
+        max = Fox_Arm64_W15;
+        break;
+    case Usage_Return:
+        RegisterRelease(Fox_Arm64_W0);
+
+        min = Fox_Arm64_W0;
+        max = Fox_Arm64_W0;
+        break;
+    }
+
+    while (min <= max) {
+        const uint32 reg_flag = (1 << min);
+
+
+        // If register is not in use, return it
+        if (!(CurrentFrame.RegistersInUse & reg_flag)) {
+            // Mark the register as in use
+            CurrentFrame.RegistersInUse |= reg_flag;
+
+            return min;
+        }
+
+        // Increment the register
+        min = static_cast<FoxArm64Register>(static_cast<uint32>(min) + 1);
+    }
+
+
+    return Fox_Arm64_None;
+}
+
+
+void FoxIRToArm64::RegisterRelease(FoxArm64Register reg)
+{
+    CurrentFrame.RegistersInUse &= ~(1 << reg);
+}
+
 
 void FoxIRToArm64::ResetFrame()
 {
     std::memset(&CurrentFrame, 0, sizeof(CurrentFrame));
+}
+
+FoxArm64Register FoxIRToArm64::GetGeneralRegFromIR(FoxIRRegister ir_reg)
+{
+    return static_cast<FoxArm64Register>(static_cast<uint32>(Fox_Arm64_W8) + static_cast<uint32>(ir_reg));
+}
+
+
+const char* FoxIRToArm64::GetRegisterName(FoxArm64Register reg)
+{
+    switch (reg) {
+    case Fox_Arm64_W0:
+        return "w0";
+    case Fox_Arm64_W1:
+        return "w1";
+    case Fox_Arm64_W2:
+        return "w2";
+    case Fox_Arm64_W3:
+        return "w3";
+    case Fox_Arm64_W4:
+        return "w4";
+    case Fox_Arm64_W5:
+        return "w5";
+    case Fox_Arm64_W6:
+        return "w6";
+    case Fox_Arm64_W7:
+        return "w7";
+    case Fox_Arm64_W8:
+        return "w8";
+    case Fox_Arm64_W9:
+        return "w9";
+    case Fox_Arm64_W10:
+        return "w10";
+    case Fox_Arm64_W11:
+        return "w11";
+    case Fox_Arm64_W12:
+        return "w12";
+    case Fox_Arm64_W13:
+        return "w13";
+    case Fox_Arm64_W14:
+        return "w14";
+    case Fox_Arm64_W15:
+        return "w15";
+    case Fox_Arm64_None:
+        return "(none)";
+    }
+
+    return "(unknown)";
 }

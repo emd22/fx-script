@@ -1215,11 +1215,42 @@ private:
 struct FoxIRArm64Frame
 {
     uint32 StackAllocated = 0;
+    uint32 RegistersInUse = 0;
 };
 
 
+enum FoxArm64Register
+{
+    Fox_Arm64_W0,
+    Fox_Arm64_W1,
+    Fox_Arm64_W2,
+    Fox_Arm64_W3,
+    Fox_Arm64_W4,
+    Fox_Arm64_W5,
+    Fox_Arm64_W6,
+    Fox_Arm64_W7,
+    Fox_Arm64_W8,
+    Fox_Arm64_W9,
+    Fox_Arm64_W10,
+    Fox_Arm64_W11,
+    Fox_Arm64_W12,
+    Fox_Arm64_W13,
+    Fox_Arm64_W14,
+    Fox_Arm64_W15,
+
+    Fox_Arm64_None,
+};
+
 class FoxIRToArm64
 {
+public:
+    enum RegisterUsage
+    {
+        Usage_Parameters,
+        Usage_General,
+        Usage_Return,
+    };
+
 public:
     FoxIRToArm64(FoxMPPagedArray<uint8>& bytecode)
     {
@@ -1251,6 +1282,14 @@ private:
     void ResetFrame();
 
     uint32 MakeValueFactorOf16(uint32 value);
+
+    FoxArm64Register RegisterRequest(RegisterUsage usage);
+    void RegisterRelease(FoxArm64Register reg);
+
+    FoxArm64Register GetGeneralRegFromIR(FoxIRRegister ir_reg);
+
+    const char* GetRegisterName(FoxArm64Register reg);
+
 
 private:
     uint32 mBytecodeIndex = 0;
