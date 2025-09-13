@@ -693,6 +693,8 @@ enum FoxIRRegister : uint8
     FX_IR_GX2,
     FX_IR_GX3,
 
+    FX_IR_REG_RETURN_VALUE,
+
     /* Stack pointer */
     FX_IR_SP,
 };
@@ -1187,6 +1189,8 @@ private:
     uint16 mVarsInScope = 0;
 
     uint16 mScopeIndex = 0;
+
+    bool mEntryPointEmitted = false;
 };
 
 
@@ -1229,6 +1233,8 @@ struct FoxIRArm64Frame
 {
     uint32 StackAllocated = 0;
     uint32 UnAlignedStackAllocated = 0;
+
+    bool HasBaselevelReturnStmt = false;
 
     uint32 RegistersInUse = 0;
 };
@@ -1293,6 +1299,8 @@ private:
     void DoMarker(char* s, uint8 op_base, uint8 op_spec);
     void DoVariable(char* s, uint8 op_base, uint8 op_spec);
 
+    void EmitFrameRestore();
+
 private:
     // void ResetFrame();
 
@@ -1302,7 +1310,7 @@ private:
     bool IsRegisterInUse(FoxArm64Register reg);
     void RegisterRelease(FoxArm64Register reg);
 
-    FoxArm64Register GetGeneralRegFromIR(FoxIRRegister ir_reg);
+    FoxArm64Register GetArmRegFromIRReg(FoxIRRegister ir_reg);
 
     const char* GetRegisterName(FoxArm64Register reg);
 
@@ -1318,4 +1326,6 @@ private:
 
     uint32 PreFrameStackAllocation = 0;
     FoxMPPagedArray<FoxIRArm64Frame> mStackFrames;
+
+    bool mEmitDefinitionAsEntryPoint = false;
 };

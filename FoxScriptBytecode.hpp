@@ -172,6 +172,8 @@ enum IrSpecMarker : uint8
 
     IrSpecMarker_ParamsBegin,
 
+    IrSpecMarker_EntryPoint,
+
 };
 
 enum IrSpecVariable : uint8
