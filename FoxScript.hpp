@@ -1095,8 +1095,9 @@ public:
 
 
 private:
-    void EmitBlock(FoxAstBlock* block);
+    void EmitBlock(FoxAstBlock* block, bool ignore_function_definitions = false);
     void EmitFunction(FoxAstFunctionDecl* function);
+    void EmitFunctionDefinitionsInBlock(FoxAstBlock* block);
     void DoFunctionCall(FoxAstFunctionCall* call);
     FoxBytecodeVarHandle* DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
     void EmitAssign(FoxAstAssign* assign);

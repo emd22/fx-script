@@ -3092,9 +3092,9 @@ void FoxIREmitter::Emit(FoxAstNode* node)
     if (node->NodeType == FX_AST_BLOCK) {
         return EmitBlock(reinterpret_cast<FoxAstBlock*>(node));
     }
-    else if (node->NodeType == FX_AST_ACTIONDECL) {
-        return EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(node));
-    }
+    // else if (node->NodeType == FX_AST_ACTIONDECL) {
+    //     return EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(node));
+    // }
     else if (node->NodeType == FX_AST_ACTIONCALL) {
         return DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(node));
     }
@@ -3997,9 +3997,20 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineReturnVar(FoxAstVarDecl* decl)
     return DoVarDeclare(decl);
 }
 
+void FoxIREmitter::EmitFunctionDefinitionsInBlock(FoxAstBlock* block)
+{
+    for (FoxAstNode* stmt : block->Statements) {
+        if (stmt->NodeType == FX_AST_ACTIONDECL) {
+            EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(stmt));
+        }
+    }
+}
+
 void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
 {
     RETURN_IF_NO_NODE(function);
+
+    EmitFunctionDefinitionsInBlock(function->Block);
 
     ++mScopeIndex;
 
@@ -4028,7 +4039,9 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
 
         // FoxBytecodeVarHandle* return_var = DefineReturnVar(function->ReturnVar);
 
-        EmitBlock(function->Block);
+        // Do not check if there are function definitions to be declared when emitting the block here as they are checked above, before any parameters
+        // or stack allocations are output.
+        EmitBlock(function->Block, true);
 
         // Check to see if there has been a return statement in the function
         bool block_has_return = false;
@@ -4081,12 +4094,22 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
     }
 }
 
-void FoxIREmitter::EmitBlock(FoxAstBlock* block)
+void FoxIREmitter::EmitBlock(FoxAstBlock* block, bool ignore_function_definitions)
 {
     RETURN_IF_NO_NODE(block);
 
+    if (!ignore_function_definitions) {
+        // Before outputting any statements output any function definitions in the block.
+        EmitFunctionDefinitionsInBlock(block);
+    }
+
     // For each var declared in the block, write a stack allocation in the frame header
     for (FoxAstNode* node : block->Statements) {
+        // Ignore function definitions when emitting the block statements as they are handled elsewhere!
+        if (node->NodeType == FX_AST_ACTIONDECL) {
+            continue;
+        }
+
         if (node->NodeType == FX_AST_VARDECL) {
             FoxAstVarDecl* var_decl = reinterpret_cast<FoxAstVarDecl*>(node);
 
