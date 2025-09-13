@@ -140,7 +140,10 @@ enum IrSpecJump : uint8
     IrSpecJump_AbsoluteReg32,
 
     IrSpecJump_CallAbsolute,
+
     IrSpecJump_ReturnToCaller,
+    IrSpecJump_ReturnToCaller_Int32,
+    IrSpecJump_ReturnToCaller_Reg32,
 
     IrSpecJump_CallExternal,
 };

@@ -7,7 +7,7 @@
 
 #define FX_SCRIPT_VERSION_MAJOR 0
 #define FX_SCRIPT_VERSION_MINOR 3
-#define FX_SCRIPT_VERSION_PATCH 1
+#define FX_SCRIPT_VERSION_PATCH 2
 
 #define FX_SCRIPT_VAR_RETURN_VAL "__ReturnVal__"
 
@@ -256,6 +256,8 @@ struct FoxAstReturn : public FoxAstNode
     {
         this->NodeType = FX_AST_RETURN;
     }
+
+    FoxAstNode* Rhs = nullptr;
 };
 
 /**
@@ -616,7 +618,13 @@ public:
             Print(command_mode->Node, depth + 1);
         }
         else if (node->NodeType == FX_AST_RETURN) {
+            FoxAstReturn* return_node = reinterpret_cast<FoxAstReturn*>(node);
+
             puts("[RETURN]");
+
+            if (return_node->Rhs) {
+                Print(return_node->Rhs, depth + 1);
+            }
         }
         else {
             puts("[UNKNOWN]");
@@ -1123,7 +1131,11 @@ private:
     void EmitJumpAbsolute(uint32 position);
     void EmitJumpAbsoluteReg32(FoxIRRegister reg);
     void EmitJumpCallAbsolute(uint32 position);
+
     void EmitJumpReturnToCaller();
+    void EmitJumpReturnToCallerReg32(FoxIRRegister reg);
+    void EmitJumpReturnToCallerInt32(int32 value);
+
     void EmitJumpCallExternal(FoxHash hashed_name);
 
     void EmitVariableGetInt32(uint16 var_index, FoxIRRegister dest_reg);
@@ -1215,6 +1227,8 @@ private:
 struct FoxIRArm64Frame
 {
     uint32 StackAllocated = 0;
+    uint32 UnAlignedStackAllocated = 0;
+
     uint32 RegistersInUse = 0;
 };
 
@@ -1279,21 +1293,28 @@ private:
     void DoVariable(char* s, uint8 op_base, uint8 op_spec);
 
 private:
-    void ResetFrame();
+    // void ResetFrame();
 
     uint32 MakeValueFactorOf16(uint32 value);
 
     FoxArm64Register RegisterRequest(RegisterUsage usage);
+    bool IsRegisterInUse(FoxArm64Register reg);
     void RegisterRelease(FoxArm64Register reg);
 
     FoxArm64Register GetGeneralRegFromIR(FoxIRRegister ir_reg);
 
     const char* GetRegisterName(FoxArm64Register reg);
 
+    FoxIRArm64Frame* GetCurrentFrame();
+
+    FoxIRArm64Frame* FramePush();
+    void FramePop();
+
 
 private:
     uint32 mBytecodeIndex = 0;
     FoxMPPagedArray<uint8> mBytecode;
 
-    FoxIRArm64Frame CurrentFrame;
+    uint32 PreFrameStackAllocation = 0;
+    FoxMPPagedArray<FoxIRArm64Frame> mStackFrames;
 };

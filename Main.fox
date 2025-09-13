@@ -1,2 +1,7 @@
-local int x = 5;
+fn Get5() int
+{
+    return 5;
+}
+
+local int x = Get5();
 local int y = x + 2;
