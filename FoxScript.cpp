@@ -2104,7 +2104,7 @@ uint32 FoxIRPrinter::Read32()
     return ((static_cast<uint32>(lo) << 16) | hi);
 }
 
-#define BC_PRINT_OP(fmt_, ...) FoxLogDebug(fmt_, ##__VA_ARGS__)
+#define BC_PRINT_OP(fmt_, ...) FoxLog<FoxLogChannel::None>(fmt_, ##__VA_ARGS__)
 
 void FoxIRPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 {
@@ -2615,6 +2615,8 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
             FoxAsm("_R_{}:", function_bytecode_index);
         }
 
+        FoxAsmIncreaseIndent();
+
         // If there are no stack allocations and the current frame does not branch, do not create a new stack frame.
         if (current_frame->StackAllocated != 0 || mFunctionContainsBranches) {
             int total_allocated = current_frame->StackAllocated;
@@ -2633,9 +2635,6 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
             // Move the FP back to ignore the storage for the above
             FoxAsm("add x29, sp, #16");
         }
-        else {
-            FoxAsm("");
-        }
     }
     else if (op_spec == IrSpecMarker_FrameEnd) {
         // If there is a return statement on base level (without branching, conditions, etc.) then we can
@@ -2643,6 +2642,8 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
         if (!GetCurrentFrame()->HasBaselevelReturnStmt) {
             EmitFrameRestore();
         }
+
+        FoxAsmDecreaseIndent();
 
         FramePop();
 

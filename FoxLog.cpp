@@ -4,10 +4,9 @@
 
 static std::ofstream sCurrentLogFile;
 
-std::ofstream& FxLogGetFile(bool* can_write)
+std::ofstream& FoxLogGetFile(bool* can_write)
 {
     if (!sCurrentLogFile.is_open()) {
-        FoxLogToStdout<FoxLogChannel::Error>("Attempting to write to log file that has not been opened");
         (*can_write) = false;
     }
     else {
@@ -17,7 +16,7 @@ std::ofstream& FxLogGetFile(bool* can_write)
     return sCurrentLogFile;
 }
 
-void FxLogCreateFile(const std::string& path)
+void FoxLogCreateFile(const std::string& path)
 {
     sCurrentLogFile.open(path.c_str());
 }
@@ -28,6 +27,8 @@ void FxLogCreateFile(const std::string& path)
 /////////////////////////////////
 
 static std::ofstream sCurrentAsmFile;
+
+static int sCurrentIndent = 0;
 
 std::ofstream& FoxAsmGetFile(bool* can_write)
 {
@@ -45,4 +46,26 @@ std::ofstream& FoxAsmGetFile(bool* can_write)
 void FoxAsmCreateFile(const std::string& path)
 {
     sCurrentAsmFile.open(path.c_str());
+}
+
+void FoxAsmOutputIndent()
+{
+    for (int i = 0; i < sCurrentIndent; i++) {
+        FoxAsmDirect("\t");
+    }
+}
+
+
+void FoxAsmIncreaseIndent()
+{
+    ++sCurrentIndent;
+}
+
+void FoxAsmDecreaseIndent()
+{
+    --sCurrentIndent;
+
+    if (sCurrentIndent < 0) {
+        sCurrentIndent = 0;
+    }
 }

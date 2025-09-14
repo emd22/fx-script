@@ -18,13 +18,13 @@ enum class FoxLogChannel
 };
 
 
-#define FX_LOG_CHANNEL_LABEL_DEBUG "[DEBUG] "
-#define FX_LOG_CHANNEL_LABEL_INFO "[INFO]  "
-#define FX_LOG_CHANNEL_LABEL_WARN "[WARN]  "
-#define FX_LOG_CHANNEL_LABEL_ERROR "[ERROR] "
-#define FX_LOG_CHANNEL_LABEL_FATAL "[FATAL] "
+#define FOX_LOG_CHANNEL_LABEL_DEBUG "[DEBUG] "
+#define FOX_LOG_CHANNEL_LABEL_INFO "[INFO]  "
+#define FOX_LOG_CHANNEL_LABEL_WARN "[WARN]  "
+#define FOX_LOG_CHANNEL_LABEL_ERROR "[ERROR] "
+#define FOX_LOG_CHANNEL_LABEL_FATAL "[FATAL] "
 
-#define FX_LOG_STYLE_RESET "\x1b[0m"
+#define FOX_LOG_STYLE_RESET "\x1b[0m"
 
 std::ofstream& FoxLogGetFile(bool* can_write);
 void FoxLogCreateFile(const std::string& path);
@@ -45,36 +45,36 @@ constexpr std::string FoxLogGetChannelText()
 
     if (AllowColors) {
         if constexpr (TLogChannel == FoxLogChannel::Debug) {
-            return ("\x1b[92m" FX_LOG_CHANNEL_LABEL_DEBUG FX_LOG_STYLE_RESET);
+            return ("\x1b[92m" FOX_LOG_CHANNEL_LABEL_DEBUG FOX_LOG_STYLE_RESET);
         }
         else if constexpr (TLogChannel == FoxLogChannel::Info) {
-            return ("\x1b[94m" FX_LOG_CHANNEL_LABEL_INFO FX_LOG_STYLE_RESET);
+            return ("\x1b[94m" FOX_LOG_CHANNEL_LABEL_INFO FOX_LOG_STYLE_RESET);
         }
         else if constexpr (TLogChannel == FoxLogChannel::Warning) {
-            return ("\x1b[93m" FX_LOG_CHANNEL_LABEL_WARN FX_LOG_STYLE_RESET);
+            return ("\x1b[93m" FOX_LOG_CHANNEL_LABEL_WARN FOX_LOG_STYLE_RESET);
         }
         else if constexpr (TLogChannel == FoxLogChannel::Error) {
-            return ("\x1b[91m" FX_LOG_CHANNEL_LABEL_ERROR FX_LOG_STYLE_RESET);
+            return ("\x1b[91m" FOX_LOG_CHANNEL_LABEL_ERROR FOX_LOG_STYLE_RESET);
         }
         else if constexpr (TLogChannel == FoxLogChannel::Fatal) {
-            return ("\x1b[1;91m" FX_LOG_CHANNEL_LABEL_FATAL FX_LOG_STYLE_RESET);
+            return ("\x1b[1;91m" FOX_LOG_CHANNEL_LABEL_FATAL FOX_LOG_STYLE_RESET);
         }
     }
     else {
         if constexpr (TLogChannel == FoxLogChannel::Debug) {
-            return FX_LOG_CHANNEL_LABEL_DEBUG;
+            return FOX_LOG_CHANNEL_LABEL_DEBUG;
         }
         else if constexpr (TLogChannel == FoxLogChannel::Info) {
-            return FX_LOG_CHANNEL_LABEL_INFO;
+            return FOX_LOG_CHANNEL_LABEL_INFO;
         }
         else if constexpr (TLogChannel == FoxLogChannel::Warning) {
-            return FX_LOG_CHANNEL_LABEL_WARN;
+            return FOX_LOG_CHANNEL_LABEL_WARN;
         }
         else if constexpr (TLogChannel == FoxLogChannel::Error) {
-            return FX_LOG_CHANNEL_LABEL_ERROR;
+            return FOX_LOG_CHANNEL_LABEL_ERROR;
         }
         else if constexpr (TLogChannel == FoxLogChannel::Fatal) {
-            return FX_LOG_CHANNEL_LABEL_FATAL;
+            return FOX_LOG_CHANNEL_LABEL_FATAL;
         }
     }
 
@@ -173,11 +173,11 @@ void FoxLog(std::string_view fmt, TTypes&&... args)
     }
 #endif
 
-#ifdef FX_LOG_OUTPUT_TO_STDOUT
+#ifdef FOX_LOG_OUTPUT_TO_STDOUT
     FoxLogToStdout<TChannel>(fmt, std::forward<TTypes>(args)...);
 #endif
 
-#ifdef FX_LOG_OUTPUT_TO_FILE
+#ifdef FOX_LOG_OUTPUT_TO_FILE
     FoxLogToFile<TChannel>(fmt, std::forward<TTypes>(args)...);
 #endif
 }
@@ -188,11 +188,11 @@ void FoxLog(std::string_view fmt, TTypes&&... args)
 template <typename... TTypes>
 void FoxLogDirect(std::string_view fmt, TTypes&&... args)
 {
-#ifdef FX_LOG_OUTPUT_TO_STDOUT
+#ifdef FOX_LOG_OUTPUT_TO_STDOUT
     FoxLogDirectToStdout(fmt, std::forward<TTypes>(args)...);
 #endif
 
-#ifdef FX_LOG_OUTPUT_TO_FILE
+#ifdef FOX_LOG_OUTPUT_TO_FILE
     FoxLogDirectToFile(fmt, std::forward<TTypes>(args)...);
 #endif
 }
@@ -231,10 +231,10 @@ void FoxLogFatal(std::string_view fmt, TTypes&&... args)
 template <FoxLogChannel TChannel>
 constexpr void FoxLogChannelText()
 {
-#ifdef FX_LOG_OUTPUT_TO_STDOUT
+#ifdef FOX_LOG_OUTPUT_TO_STDOUT
     FoxLogDirectToStdout("{}", FoxLogGetChannelText<TChannel>());
 #endif
-#ifdef FX_LOG_OUTPUT_TO_FILE
+#ifdef FOX_LOG_OUTPUT_TO_FILE
     FoxLogDirectToFile("{}", FoxLogGetChannelText<TChannel, false>());
 #endif
 }
@@ -246,6 +246,11 @@ constexpr void FoxLogChannelText()
 
 std::ofstream& FoxAsmGetFile(bool* can_write);
 void FoxAsmCreateFile(const std::string& path);
+
+void FoxAsmIncreaseIndent();
+void FoxAsmDecreaseIndent();
+
+void FoxAsmOutputIndent();
 
 template <typename... TTypes>
 void FoxAsmToFile(std::string_view fmt, TTypes&&... args)
@@ -259,7 +264,7 @@ void FoxAsmToFile(std::string_view fmt, TTypes&&... args)
 
     auto msg = std::vformat(fmt, std::make_format_args(args...));
 
-    stream << msg << '\n';
+    stream << msg;
 }
 
 
@@ -268,15 +273,11 @@ void FoxAsmToStdout(std::string_view fmt, TTypes&&... args)
 {
     auto msg = std::vformat(fmt, std::make_format_args(args...));
 
-    std::cout << msg << '\n';
+    std::cout << msg;
 }
 
-
-/**
- * @brief Logs a message to a channel from `FoxLogChannel`.
- */
 template <typename... TTypes>
-void FoxAsm(std::string_view fmt, TTypes&&... args)
+void FoxAsmDirect(std::string_view fmt, TTypes&&... args)
 {
 #ifdef FOX_ASM_OUTPUT_TO_STDOUT
     FoxAsmToStdout(fmt, std::forward<TTypes>(args)...);
@@ -285,4 +286,13 @@ void FoxAsm(std::string_view fmt, TTypes&&... args)
 #ifdef FOX_ASM_OUTPUT_TO_FILE
     FoxAsmToFile(fmt, std::forward<TTypes>(args)...);
 #endif
+}
+
+template <typename... TTypes>
+void FoxAsm(std::string_view fmt, TTypes&&... args)
+{
+    FoxAsmOutputIndent();
+
+    FoxAsmDirect(fmt, std::forward<TTypes>(args)...);
+    FoxAsmDirect("\n");
 }
