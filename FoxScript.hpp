@@ -1233,10 +1233,10 @@ struct FoxIRArm64Frame
 {
     uint32 StackAllocated = 0;
     uint32 UnAlignedStackAllocated = 0;
+    uint32 RegistersInUse = 0;
 
     bool HasBaselevelReturnStmt = false;
-
-    uint32 RegistersInUse = 0;
+    bool DoesBranch = false;
 };
 
 

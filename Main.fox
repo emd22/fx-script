@@ -5,3 +5,5 @@ fn Get5() int
 
 local int x = Get5();
 local int y = x + 2;
+
+return y;

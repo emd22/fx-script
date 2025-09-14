@@ -173,7 +173,7 @@ enum IrSpecMarker : uint8
     IrSpecMarker_ParamsBegin,
 
     IrSpecMarker_EntryPoint,
-
+    IrSpecMarker_FunctionBranches,
 };
 
 enum IrSpecVariable : uint8
