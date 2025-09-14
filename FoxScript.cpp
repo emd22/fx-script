@@ -2113,11 +2113,11 @@ void FoxIRPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 
     if (op_spec == IrSpecLoad_Int32) {
         int16 offset = Read16();
-        BC_PRINT_OP("load [i32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        BC_PRINT_OP("load [i32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
     else if (op_spec == IrSpecLoad_AbsoluteInt32) {
         uint32 offset = Read32();
-        BC_PRINT_OP("loada [i32] %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        BC_PRINT_OP("loada [i32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
@@ -2125,15 +2125,15 @@ void FoxIRPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecPush_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("push [i32] %u", value);
+        BC_PRINT_OP("push [i32] {}", value);
     }
     else if (op_spec == IrSpecPush_Reg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("push [r32] %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("push [r32] {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecPush_StackAlloc) {
         uint16 size = Read16();
-        BC_PRINT_OP("salloc %d", size);
+        BC_PRINT_OP("salloc {}", size);
     }
 }
 
@@ -2143,7 +2143,7 @@ void FoxIRPrinter::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == IrSpecPop_Int32) {
-        BC_PRINT_OP("pop [i32] %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        BC_PRINT_OP("pop [i32] {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
@@ -2153,7 +2153,7 @@ void FoxIRPrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
     uint8 b_reg = mBytecode[mBytecodeIndex++];
 
     if (op_spec == IrSpecArith_Add_Reg32) {
-        BC_PRINT_OP("add [i32] %s, %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
+        BC_PRINT_OP("add [i32] {}, {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
                     FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
     }
 }
@@ -2165,7 +2165,7 @@ void FoxIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const int16 offset = Read16();
         const uint32 value = Read32();
 
-        BC_PRINT_OP("save [i32] %d, %u", offset, value);
+        BC_PRINT_OP("save [i32] {}, {}", offset, value);
     }
 
     // Save a register into an offset in the stack
@@ -2173,19 +2173,19 @@ void FoxIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const int16 offset = Read16();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save [r32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("save [r32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecSave_AbsoluteInt32) {
         const uint32 offset = Read32();
         const uint32 value = Read32();
 
-        BC_PRINT_OP("savea [i32] %u, %u", offset, value);
+        BC_PRINT_OP("savea [i32] {}, {}", offset, value);
     }
     else if (op_spec == IrSpecSave_AbsoluteReg32) {
         const uint32 offset = Read32();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("savea [r32] %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("savea [r32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
 }
 
@@ -2193,19 +2193,19 @@ void FoxIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecJump_Relative) {
         uint16 offset = Read16();
-        BC_PRINT_OP("jmpr %d", offset);
+        BC_PRINT_OP("jmpr {}", offset);
     }
     else if (op_spec == IrSpecJump_Absolute) {
         uint32 position = Read32();
-        BC_PRINT_OP("jmpa %u", position);
+        BC_PRINT_OP("jmpa {}", position);
     }
     else if (op_spec == IrSpecJump_AbsoluteReg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("jmpar %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("jmpar {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecJump_CallAbsolute) {
         uint32 position = Read32();
-        BC_PRINT_OP("calla %u", position);
+        BC_PRINT_OP("calla {}", position);
     }
     else if (op_spec == IrSpecJump_ReturnToCaller) {
         BC_PRINT_OP("ret");
@@ -2213,15 +2213,15 @@ void FoxIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
     else if (op_spec == IrSpecJump_ReturnToCaller_Reg32) {
         const char* reg_name = FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(Read16()));
 
-        BC_PRINT_OP("ret [r32] %s", reg_name);
+        BC_PRINT_OP("ret [r32] {}", reg_name);
     }
     else if (op_spec == IrSpecJump_ReturnToCaller_Int32) {
         int32 value = Read32();
-        BC_PRINT_OP("ret [i32] %d", value);
+        BC_PRINT_OP("ret [i32] {}", value);
     }
     else if (op_spec == IrSpecJump_CallExternal) {
         uint32 hashed_name = Read32();
-        BC_PRINT_OP("callext %u", hashed_name);
+        BC_PRINT_OP("callext {}", hashed_name);
     }
 }
 
@@ -2240,7 +2240,7 @@ void FoxIRPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
             data_str16[data_index++] = ((value16 << 8) | (value16 >> 8));
         }
 
-        BC_PRINT_OP("datastr %d, %.*s", length, length, data_str);
+        BC_PRINT_OP("datastr {}, {.{}}", length, length, data_str);
 
         FX_SCRIPT_FREE(char, data_str);
     }
@@ -2263,7 +2263,7 @@ void FoxIRPrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 
     if (op_spec == IrSpecMove_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("move [i32] %s, %u\t", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
+        BC_PRINT_OP("move [i32] {}, {}\t", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
     }
 }
 
@@ -2292,17 +2292,17 @@ void FoxIRPrinter::DoVariable(char* s, uint8 op_base, uint8 op_spec)
     if (op_spec == IrSpecVariable_Get_Int32) {
         uint16 var_index = Read16();
         FoxIRRegister dest_reg = static_cast<FoxIRRegister>(Read16());
-        BC_PRINT_OP("vget [i32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(dest_reg));
+        BC_PRINT_OP("vget [i32] ${}, {}", var_index, FoxIREmitter::GetRegisterName(dest_reg));
     }
     else if (op_spec == IrSpecVariable_Set_Int32) {
         uint16 var_index = Read16();
         uint32 value = Read32();
-        BC_PRINT_OP("vset [i32] $%d, %d", var_index, value);
+        BC_PRINT_OP("vset [i32] ${}, {}", var_index, value);
     }
     else if (op_spec == IrSpecVariable_Set_Reg32) {
         uint16 var_index = Read16();
         FoxIRRegister reg = static_cast<FoxIRRegister>(Read16());
-        BC_PRINT_OP("vset [r32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(reg));
+        BC_PRINT_OP("vset [r32] ${}, {}", var_index, FoxIREmitter::GetRegisterName(reg));
     }
 }
 

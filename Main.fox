@@ -1,6 +1,12 @@
+fn Get2() int
+{
+    return 2;
+}
+
 fn Get5() int
 {
-    return 5;
+    local int value = Get2() + 3;
+    return value;
 }
 
 local int x = Get5();
