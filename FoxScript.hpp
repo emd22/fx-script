@@ -1176,6 +1176,8 @@ private:
     void MarkRegisterUsed(FoxIRRegister reg);
     void MarkRegisterFree(FoxIRRegister reg);
 
+    bool DoesNodeBranch(FoxAstNode* node);
+
 public:
     FoxMPPagedArray<FoxBytecodeVarHandle> VarHandles;
     std::vector<FoxBytecodeFunctionHandle> FunctionHandles;
@@ -1236,7 +1238,6 @@ struct FoxIRArm64Frame
     uint32 RegistersInUse = 0;
 
     bool HasBaselevelReturnStmt = false;
-    bool DoesBranch = false;
 };
 
 
@@ -1328,4 +1329,5 @@ private:
     FoxMPPagedArray<FoxIRArm64Frame> mStackFrames;
 
     bool mEmitDefinitionAsEntryPoint = false;
+    bool mFunctionContainsBranches = false;
 };

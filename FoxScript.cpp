@@ -4114,21 +4114,22 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, bool ignore_function_definition
         mEntryPointEmitted = true;
     }
 
+    bool does_block_branch = false;
+
     if (!ignore_function_definitions) {
         // Before outputting any statements output any function definitions in the block.
         EmitFunctionDefinitionsInBlock(block);
     }
 
-    bool does_function_branch = false;
-
     // For each var declared in the block, write a stack allocation in the frame header
     for (FoxAstNode* node : block->Statements) {
+        if (!does_block_branch && DoesNodeBranch(node)) {
+            does_block_branch = true;
+        }
+
         // Ignore function definitions when emitting the block statements as they are handled elsewhere!
         if (node->NodeType == FX_AST_ACTIONDECL) {
             continue;
-        }
-        else if (node->NodeType == FX_AST_ACTIONCALL) {
-            does_function_branch = true;
         }
         else if (node->NodeType == FX_AST_VARDECL) {
             FoxAstVarDecl* var_decl = reinterpret_cast<FoxAstVarDecl*>(node);
@@ -4156,13 +4157,13 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, bool ignore_function_definition
         EmitMarker(IrSpecMarker_EntryPoint);
     }
 
-    // After the stack allocations, mark the start of the frame.
-    EmitMarker(IrSpecMarker_FrameBegin);
-
-    if (does_function_branch) {
+    if (does_block_branch) {
         EmitMarker(IrSpecMarker_FunctionBranches);
     }
 
+
+    // After the stack allocations, mark the start of the frame.
+    EmitMarker(IrSpecMarker_FrameBegin);
 
     for (FoxAstNode* node : block->Statements) {
         Emit(node);
@@ -4192,6 +4193,46 @@ void FoxIREmitter::PrintBytecode()
         }
     }
     printf("\n");
+}
+
+bool FoxIREmitter::DoesNodeBranch(FoxAstNode* node)
+{
+    if (node == nullptr) {
+        return false;
+    }
+
+    if (node->NodeType == FX_AST_ACTIONCALL) {
+        return true;
+    }
+
+    else if (node->NodeType == FX_AST_BLOCK) {
+        FoxAstBlock* block = reinterpret_cast<FoxAstBlock*>(node);
+        for (FoxAstNode* stmt : block->Statements) {
+            if (DoesNodeBranch(stmt)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    else if (node->NodeType == FX_AST_VARDECL) {
+        FoxAstVarDecl* vardecl = reinterpret_cast<FoxAstVarDecl*>(node);
+
+        return DoesNodeBranch(vardecl->Assignment);
+    }
+    else if (node->NodeType == FX_AST_BINOP) {
+        FoxAstBinop* binop = reinterpret_cast<FoxAstBinop*>(node);
+        return (DoesNodeBranch(binop->Left) || DoesNodeBranch(binop->Right));
+    }
+
+    else if (node->NodeType == FX_AST_ASSIGN) {
+        FoxAstAssign* assign = reinterpret_cast<FoxAstAssign*>(node);
+
+        return DoesNodeBranch(assign->Rhs);
+    }
+
+    return false;
 }
 
 #pragma endregion IrEmitter
@@ -4598,21 +4639,23 @@ void FoxIRToArm64::EmitFrameRestore()
 {
     FoxIRArm64Frame* current_frame = GetCurrentFrame();
 
-    if (current_frame->DoesBranch) {
+    if (mFunctionContainsBranches) {
         printf("ldp x29, x30, [sp, #%u]\n", GetCurrentFrame()->StackAllocated);
     }
 
-    if (current_frame->StackAllocated != 0 || current_frame->DoesBranch) {
+    if (current_frame->StackAllocated != 0 || mFunctionContainsBranches) {
         int total_allocated = current_frame->StackAllocated;
 
         // If we do branch, we have saved the FP and LR registers to the stack. Each one is 8 bytes long (uint64), so we will need to keep that in
         // mind when restoring the stack frame.
-        if (current_frame->DoesBranch) {
+        if (mFunctionContainsBranches) {
             total_allocated += sizeof(uint64) * 2;
         }
 
         printf("add sp, sp, #%u\n", total_allocated);
     }
+
+    mFunctionContainsBranches = false;
 }
 
 void FoxIRToArm64::DoJump(char* s, uint8 op_base, uint8 op_spec)
@@ -4738,11 +4781,11 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
         }
 
         // If there are no stack allocations and the current frame does not branch, do not create a new stack frame.
-        if (current_frame->StackAllocated != 0 || current_frame->DoesBranch) {
+        if (current_frame->StackAllocated != 0 || mFunctionContainsBranches) {
             int total_allocated = current_frame->StackAllocated;
 
             // If we do branch, we need to save the FP and LR registers to the stack. Each one is 8 bytes long (uint64).
-            if (current_frame->DoesBranch) {
+            if (mFunctionContainsBranches) {
                 total_allocated += sizeof(uint64) * 2;
             }
 
@@ -4750,7 +4793,7 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
             printf("sub sp, sp, #%u\n", total_allocated);
         }
 
-        if (current_frame->DoesBranch) {
+        if (mFunctionContainsBranches) {
             printf("stp x29, x30, [sp, #%u]\n", current_frame->StackAllocated);
             // Move the FP back to ignore the storage for the above
             BC_PRINT_OP("add x29, sp, #16");
@@ -4779,7 +4822,8 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
         BC_PRINT_OP("// Entry point");
     }
     else if (op_spec == IrSpecMarker_FunctionBranches) {
-        GetCurrentFrame()->DoesBranch = true;
+        mFunctionContainsBranches = true;
+
         BC_PRINT_OP("// Branches");
     }
 }
