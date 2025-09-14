@@ -655,3 +655,19 @@ private:
 
     FoxMPPagedArray<Token> mTokens;
 };
+
+
+template <>
+struct std::formatter<FoxTokenizer::Token>
+{
+    constexpr auto parse(format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    constexpr auto format(const FoxTokenizer::Token& obj, std::format_context& ctx) const
+    {
+        const std::string str(obj.Start, obj.Length);
+        return std::format_to(ctx.out(), "(Type={}, {})", FoxTokenizer::GetTypeName(obj.Type), str);
+    }
+};

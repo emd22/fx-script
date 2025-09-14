@@ -4,7 +4,7 @@ LINKFLAGS := -lc++
 
 BUILD_DIR := build
 
-SRC := FoxScript.cpp Main.cpp
+SRC := FoxScript.cpp FoxLog.cpp Main.cpp
 OBJ := $(SRC:%.cpp=$(BUILD_DIR)/%.o)
 DEP := $(OBJ:.o=.d)  # dependency files
 TARGET := fxscript

@@ -1,5 +1,6 @@
 #include "FoxScript.hpp"
 
+#include "FoxLog.hpp"
 #include "FoxScriptUtil.hpp"
 
 #include <stdio.h>
@@ -11,10 +12,6 @@
 
 #define FX_SCRIPT_SCOPE_GLOBAL_ACTIONS_START_SIZE 32
 #define FX_SCRIPT_SCOPE_LOCAL_ACTIONS_START_SIZE 32
-
-
-#define BC_PRINT_OP(fmt_, ...) snprintf(s, 128, fmt_, ##__VA_ARGS__)
-
 
 #define MARK_REGISTER_USED(regn_)                                                                                                                    \
     {                                                                                                                                                \
@@ -34,7 +31,8 @@ void FoxConfigScript::LoadFile(const char* path)
 {
     FILE* fp = FoxUtil::FileOpen(path, "rb");
     if (fp == nullptr) {
-        printf("[ERROR] Could not open config file at '%s'\n", path);
+        // printf("[ERROR] Could not open config file at '%s'\n", path);
+        FoxLogError("Could not open config file at '{}'", path);
         return;
     }
 
@@ -46,7 +44,7 @@ void FoxConfigScript::LoadFile(const char* path)
 
     size_t read_size = std::fread(mFileData, 1, file_size, fp);
     if (read_size != file_size) {
-        printf("[WARNING] Error reading all data from config file at '%s' (read=%zu, size=%zu)\n", path, read_size, file_size);
+        FoxLogWarning("Error reading all data from config file at '{}' (read={}, size={})", path, read_size, file_size);
     }
 
     FoxTokenizer tokenizer(mFileData, read_size);
@@ -83,8 +81,8 @@ Token& FoxConfigScript::EatToken(TT token_type)
 {
     Token& token = GetToken();
     if (token.Type != token_type) {
-        printf("[ERROR] %u:%u: Unexpected token type %s when expecting %s!\n", token.FileLine, token.FileColumn,
-               FoxTokenizer::GetTypeName(token.Type), FoxTokenizer::GetTypeName(token_type));
+        FoxLogError("{}:{}: Unexpected token type {} when expecting {}!", token.FileLine, token.FileColumn, FoxTokenizer::GetTypeName(token.Type),
+                    FoxTokenizer::GetTypeName(token_type));
         mHasErrors = true;
     }
     ++mTokenIndex;
@@ -424,9 +422,7 @@ FoxValue FoxConfigScript::ParseValue()
             // We cannot find the definition for the variable, assume that it is an external variable that will be defined
             // during the interpret stage.
 
-            printf("ERROR: Undefined reference to variable ");
-            token.Print();
-            printf("\n");
+            FoxLogError("ERROR: Undefined reference to variable {}", token);
 
             // printf("Undefined reference to variable \"%.*s\"! (Hash:%u)\n", token.Length, token.Start, token.GetHash());
             EatToken(TT::Identifier);
@@ -532,63 +528,6 @@ FoxAstNode* FoxConfigScript::ParseRhs()
     }
 
     return lhs;
-
-    /*
-    RETURN_IF_NO_TOKENS(nullptr);
-
-    bool has_parameters = false;
-
-    if (mTokenIndex + 1 < mTokens.Size()) {
-        TT next_token_type = GetToken(1).Type;
-        has_parameters = next_token_type == TT::LParen;
-
-        if (mInCommandMode) {
-            has_parameters = next_token_type == TT::Identifier || next_token_type == TT::Integer || next_token_type == TT::Float || next_token_type ==
-    TT::String;
-        }
-    }
-
-    FoxTokenizer::Token& token = GetToken();
-
-    FoxAstNode* lhs = nullptr;
-
-    if (token.Type == TT::Identifier) {
-        if (has_parameters) {
-            lhs = ParseFunctionCall();
-        }
-        else {
-            FoxExternalFunc* external_function = FindExternalFunction(token.GetHash());
-            if (external_function != nullptr) {
-                return ParseFunctionCall();
-            }
-
-            FoxFunction* function = FindFunction(token.GetHash());
-            if (function != nullptr) {
-                return ParseFunctionCall();
-            }
-
-        }
-    }
-
-    else if (IsTokenTypeLiteral(token.Type) || token.Type == TT::Identifier) {
-        FoxAstLiteral* literal = FX_SCRIPT_ALLOC_NODE(FoxAstLiteral);
-        literal->Value = ParseValue();
-        lhs = literal;
-    }
-
-    TT op_type = GetToken(0).Type;
-    if (op_type == TT::Plus || op_type == TT::Minus) {
-        FoxAstBinop* binop = FX_SCRIPT_ALLOC_NODE(FoxAstBinop);
-
-        binop->Left = lhs;
-        binop->OpToken = &EatToken(op_type);
-        binop->Right = ParseRhs();
-
-        return binop;
-    }
-
-    return lhs;
-    */
 }
 
 FoxAstAssign* FoxConfigScript::TryParseAssignment(FoxTokenizer::Token* var_name)
@@ -936,40 +875,6 @@ FoxAstFunctionCall* FoxConfigScript::ParseFunctionCall()
     return node;
 }
 
-
-// void FoxConfigScript::ParseDoCall()
-//{
-//     Token& call_name = EatToken(TT::Identifier);
-//
-//     EatToken(TT::LParen);
-//
-//     std::vector<FoxValue> params;
-//
-//     while (true) {
-//         params.push_back(ParseValue());
-//
-//         if (GetToken().Type == TT::Comma) {
-//             EatToken(TT::Comma);
-//             continue;
-//         }
-//
-//         break;
-//     }
-//
-//     EatToken(TT::RParen);
-//
-//     TryCallInternalFunc(call_name.GetHash(), params);
-//
-//     printf("Calling ");
-//     call_name.Print();
-//
-//     for (const auto& param : params) {
-//         printf("param : ");
-//         param.Print();
-//     }
-// }
-
-
 FoxAstBlock* FoxConfigScript::Parse()
 {
     FoxAstBlock* root_block = FX_SCRIPT_ALLOC_NODE(FoxAstBlock);
@@ -994,63 +899,6 @@ FoxAstBlock* FoxConfigScript::Parse()
 }
 
 
-// void FoxConfigScript::DefineDefaultExternalFunctions()
-// {
-//     // log([int | float | string | ref] args...)
-//     RegisterExternalFunc(
-//         FoxHashStr("log"), {}, // Do not check argument types as we handle it here
-//         [](FoxVM* vm, std::vector<FoxValue>& args, FoxValue* return_value)
-//         {
-//             printf("[SCRIPT]: ");
-
-//             for (int i = args.size() - 1; i >= 0; i--) {
-//                 FoxValue& arg = args[i];
-
-//                 // const FoxValue& value = interpreter.GetImmediateValue(arg);
-//                 const FoxValue& value = arg;
-
-//                 switch (value.Type) {
-//                 case FoxValue::NONETYPE:
-//                     printf("[none]");
-//                     break;
-//                 case FoxValue::INT:
-//                     printf("%d", value.ValueInt);
-//                     break;
-//                 case FoxValue::FLOAT:
-//                     printf("%f", value.ValueFloat);
-//                     break;
-//                 case FoxValue::STRING:
-//                     printf("%s", value.ValueString);
-//                     break;
-//                 default:
-//                     printf("Unknown type\n");
-//                     break;
-//                 }
-
-//                 putchar(' ');
-//             }
-
-//             putchar('\n');
-//         },
-//         true // Is variadic?
-//     );
-// }
-
-
-// void FoxConfigScript::RegisterExternalFunc(FoxHash func_name, std::vector<FoxValue::ValueType> param_types, FoxExternalFunc::FuncType callback,
-//                                            bool is_variadic)
-// {
-//     FoxExternalFunc func {
-//         .HashedName = func_name,
-//         .Function = callback,
-//         .ParameterTypes = param_types,
-//         .IsVariadic = is_variadic,
-//     };
-
-//     mExternalFuncs.push_back(func);
-// }
-
-
 ///////////////////////////////////////////////
 // IR Asm Emitter
 ///////////////////////////////////////////////
@@ -1068,8 +916,6 @@ void FoxIREmitter::BeginEmitting(FoxAstNode* node)
     VarHandles.Create(64);
 
     Emit(node);
-
-    printf("\n");
 
     PrintBytecode();
 }
@@ -1540,7 +1386,7 @@ FoxIRRegister FoxIREmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
     // }
 
     if (!var_handle) {
-        printf("Could not find var handle!");
+        FoxLogError("Could not find var handle!");
         return FX_IR_GW0;
     }
 
@@ -1589,7 +1435,7 @@ uint16 FoxIREmitter::GetSizeOfType(FoxTokenizer::Token* token)
         return sizeof(float32);
     }
     else {
-        printf("!!! UNKNOWN TYPE\n");
+        FoxLogError("UNKNOWN TYPE");
     }
 
     return 0;
@@ -1648,7 +1494,7 @@ void FoxIREmitter::EmitAssign(FoxAstAssign* assign)
 {
     FoxBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->Name->GetHash());
     if (var_handle == nullptr) {
-        printf("!!! Var '%.*s' does not exist!\n", assign->Var->Name->Length, assign->Var->Name->Start);
+        FoxLogError("Var '{.{}}' does not exist!", assign->Var->Name->Length, assign->Var->Name->Start);
         return;
     }
 
@@ -1661,7 +1507,7 @@ void FoxIREmitter::EmitAssign(FoxAstAssign* assign)
     // int output_offset = -(static_cast<int>(mStackOffset) - static_cast<int>(var_handle->Offset));
 
     if (!var_handle) {
-        printf("Could not find var handle to assign to!");
+        FoxLogError("Could not find var handle to assign to!");
         return;
     }
 
@@ -1882,7 +1728,8 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
     FoxBytecodeVarHandle* var_handle = FindVarHandle(decl_hash);
 
     if (var_handle == nullptr) {
-        printf("!!! Could not find var handle!\n");
+        // printf("!!! Could not find var handle!\n");
+        FoxLogError("Could not find var handle!");
         return nullptr;
     }
 
@@ -1976,7 +1823,7 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
 FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_node)
 {
     if (param_decl_node->NodeType != FX_AST_VARDECL) {
-        printf("!!! param node type is not vardecl!\n");
+        FoxLogError("Param node type is not vardecl!");
         return nullptr;
     }
 
@@ -1984,7 +1831,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_n
     FoxBytecodeVarHandle* handle = DoVarDeclare(reinterpret_cast<FoxAstVarDecl*>(param_decl_node), DECLARE_NO_EMIT);
 
     if (!handle) {
-        printf("!!! could not define and fetch param!\n");
+        FoxLogError("Could not define and fetch param!");
         return nullptr;
     }
 
@@ -2257,7 +2104,7 @@ uint32 FoxIRPrinter::Read32()
     return ((static_cast<uint32>(lo) << 16) | hi);
 }
 
-#define BC_PRINT_OP(fmt_, ...) snprintf(s, 128, fmt_, ##__VA_ARGS__)
+#define BC_PRINT_OP(fmt_, ...) FoxLogDebug(fmt_, ##__VA_ARGS__)
 
 void FoxIRPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 {
@@ -2346,7 +2193,6 @@ void FoxIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecJump_Relative) {
         uint16 offset = Read16();
-        printf("// jump relative to (%u)\n", mBytecodeIndex + offset);
         BC_PRINT_OP("jmpr %d", offset);
     }
     else if (op_spec == IrSpecJump_Absolute) {
@@ -2470,7 +2316,7 @@ void FoxIRPrinter::Print()
 
 void FoxIRPrinter::PrintOp()
 {
-    uint32 bc_index = mBytecodeIndex;
+    // uint32 bc_index = mBytecodeIndex;
 
     uint16 op_full = Read16();
 
@@ -2514,12 +2360,7 @@ void FoxIRPrinter::PrintOp()
         DoVariable(s, op_base, op_spec);
         break;
     }
-
-    printf("%-25s", s);
-
-    printf("\t// Offset: %u\n", bc_index);
 }
-
 
 /////////////////////////////////////
 // FxIRToArm64
@@ -2541,8 +2382,6 @@ uint32 FoxIRToArm64::Read32()
     return ((static_cast<uint32>(lo) << 16) | hi);
 }
 
-#define BC_PRINT_OP(fmt_, ...) snprintf(s, 128, fmt_, ##__VA_ARGS__)
-
 void FoxIRToArm64::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
@@ -2550,11 +2389,11 @@ void FoxIRToArm64::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 
     if (op_spec == IrSpecLoad_Int32) {
         int16 offset = Read16();
-        BC_PRINT_OP("load [i32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        FoxAsm("load [i32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
     else if (op_spec == IrSpecLoad_AbsoluteInt32) {
         uint32 offset = Read32();
-        BC_PRINT_OP("loada [i32] %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        FoxAsm("loada [i32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
@@ -2562,18 +2401,18 @@ void FoxIRToArm64::DoPush(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecPush_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("push [i32] %u", value);
+        FoxAsm("push [i32] {}", value);
     }
     else if (op_spec == IrSpecPush_Reg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("push [r32] %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        FoxAsm("push [r32] {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecPush_StackAlloc) {
         uint16 size = Read16();
 
         PreFrameStackAllocation += size;
 
-        BC_PRINT_OP("// salloc %d", size);
+        FoxAsm("// SAlloc {}", size);
     }
 }
 
@@ -2583,7 +2422,7 @@ void FoxIRToArm64::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
     uint8 op_reg = (op_spec_raw & 0x0F);
 
     if (op_spec == IrSpecPop_Int32) {
-        BC_PRINT_OP("pop [i32] %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        FoxAsm("pop [i32] {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
@@ -2599,7 +2438,7 @@ void FoxIRToArm64::DoArith(char* s, uint8 op_base, uint8 op_spec)
         const char* lhs_reg = GetRegisterName(GetArmRegFromIRReg(a_reg));
         const char* rhs_reg = GetRegisterName(GetArmRegFromIRReg(b_reg));
 
-        BC_PRINT_OP("add %s, %s, %s", lhs_reg, lhs_reg, rhs_reg);
+        FoxAsm("add {}, {}, {}", lhs_reg, lhs_reg, rhs_reg);
     }
 }
 
@@ -2610,7 +2449,7 @@ void FoxIRToArm64::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const int16 offset = Read16();
         const uint32 value = Read32();
 
-        BC_PRINT_OP("save [i32] %d, %u", offset, value);
+        FoxAsm("save [i32] {}, {}", offset, value);
     }
 
     // Save a register into an offset in the stack
@@ -2618,19 +2457,19 @@ void FoxIRToArm64::DoSave(char* s, uint8 op_base, uint8 op_spec)
         const int16 offset = Read16();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save [r32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        FoxAsm("save [r32] %d, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecSave_AbsoluteInt32) {
         const uint32 offset = Read32();
         const uint32 value = Read32();
 
-        BC_PRINT_OP("savea [i32] %u, %u", offset, value);
+        FoxAsm("savea [i32] {}, {}", offset, value);
     }
     else if (op_spec == IrSpecSave_AbsoluteReg32) {
         const uint32 offset = Read32();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("savea [r32] %u, %s", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        FoxAsm("savea [r32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
 }
 
@@ -2639,7 +2478,7 @@ void FoxIRToArm64::EmitFrameRestore()
     FoxIRArm64Frame* current_frame = GetCurrentFrame();
 
     if (mFunctionContainsBranches) {
-        printf("ldp x29, x30, [sp, #%u]\n", GetCurrentFrame()->StackAllocated);
+        FoxAsm("ldp x29, x30, [sp, #{}]", GetCurrentFrame()->StackAllocated);
     }
 
     if (current_frame->StackAllocated != 0 || mFunctionContainsBranches) {
@@ -2651,7 +2490,7 @@ void FoxIRToArm64::EmitFrameRestore()
             total_allocated += sizeof(uint64) * 2;
         }
 
-        printf("add sp, sp, #%u\n", total_allocated);
+        FoxAsm("add sp, sp, #{}", total_allocated);
     }
 
     mFunctionContainsBranches = false;
@@ -2663,31 +2502,30 @@ void FoxIRToArm64::DoJump(char* s, uint8 op_base, uint8 op_spec)
 
     if (op_spec == IrSpecJump_Relative) {
         uint16 offset = Read16();
-        printf("// jump relative to (%u)\n", mBytecodeIndex + offset);
-        BC_PRINT_OP("jmpr %d", offset);
+        FoxAsm("jmpr {}", offset);
     }
     else if (op_spec == IrSpecJump_Absolute) {
         uint32 position = Read32();
-        BC_PRINT_OP("jmpa %u", position);
+        FoxAsm("jmpa {}", position);
     }
     else if (op_spec == IrSpecJump_AbsoluteReg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("jmpar %s", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        FoxAsm("jmpar {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecJump_CallAbsolute) {
         uint32 position = Read32();
-        BC_PRINT_OP("bl _R_%u", position);
+        FoxAsm("bl _R_{}", position);
     }
     else if (op_spec == IrSpecJump_CallExternal) {
         uint32 hashed_name = Read32();
 
-        BC_PRINT_OP("callext %u", hashed_name);
+        FoxAsm("callext {}", hashed_name);
     }
 
     else if (op_spec == IrSpecJump_ReturnToCaller) {
         current_frame->HasBaselevelReturnStmt = true;
         EmitFrameRestore();
-        BC_PRINT_OP("ret");
+        FoxAsm("ret");
     }
     else if (op_spec == IrSpecJump_ReturnToCaller_Reg32) {
         current_frame->HasBaselevelReturnStmt = true;
@@ -2695,18 +2533,18 @@ void FoxIRToArm64::DoJump(char* s, uint8 op_base, uint8 op_spec)
         const FoxArm64Register value_reg = GetArmRegFromIRReg(static_cast<FoxIRRegister>(Read16()));
 
         if (value_reg != Fox_Arm64_W0) {
-            printf("mov w0, %s\n", GetRegisterName(value_reg));
+            FoxAsm("mov w0, {}", GetRegisterName(value_reg));
         }
 
         EmitFrameRestore();
-        BC_PRINT_OP("ret");
+        FoxAsm("ret");
     }
     else if (op_spec == IrSpecJump_ReturnToCaller_Int32) {
         current_frame->HasBaselevelReturnStmt = true;
 
-        printf("mov w0, #%d\n", Read32());
+        FoxAsm("mov w0, #{}", Read32());
         EmitFrameRestore();
-        BC_PRINT_OP("ret");
+        FoxAsm("ret");
     }
 }
 
@@ -2725,8 +2563,6 @@ void FoxIRToArm64::DoData(char* s, uint8 op_base, uint8 op_spec)
             data_str16[data_index++] = ((value16 << 8) | (value16 >> 8));
         }
 
-        BC_PRINT_OP("// datastr %d, %.*s", length, length, data_str);
-
         FX_SCRIPT_FREE(char, data_str);
     }
 }
@@ -2734,10 +2570,10 @@ void FoxIRToArm64::DoData(char* s, uint8 op_base, uint8 op_spec)
 void FoxIRToArm64::DoType(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecType_Int) {
-        BC_PRINT_OP("// type int");
+        FoxAsm("// type int");
     }
     else if (op_spec == IrSpecType_String) {
-        BC_PRINT_OP("// type str");
+        FoxAsm("// type str");
     }
 }
 
@@ -2752,7 +2588,7 @@ void FoxIRToArm64::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 
         // BC_PRINT_OP("move [i32] %s, %u\t", FoxIREmitter::GetRegisterName(), value);
 
-        BC_PRINT_OP("mov %s, #%d", GetRegisterName(dest_reg), value);
+        FoxAsm("mov {}, #{}", GetRegisterName(dest_reg), value);
     }
 }
 
@@ -2773,10 +2609,10 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
         const uint32 function_bytecode_index = mBytecodeIndex - size_of_opcode;
 
         if (mEmitDefinitionAsEntryPoint) {
-            printf("_main:\n");
+            FoxAsm("_main:");
         }
         else {
-            printf("_R_%d:\n", function_bytecode_index);
+            FoxAsm("_R_{}:", function_bytecode_index);
         }
 
         // If there are no stack allocations and the current frame does not branch, do not create a new stack frame.
@@ -2789,16 +2625,16 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
             }
 
             // Allocate the stack frame
-            printf("sub sp, sp, #%u\n", total_allocated);
+            FoxAsm("sub sp, sp, #{}", total_allocated);
         }
 
         if (mFunctionContainsBranches) {
-            printf("stp x29, x30, [sp, #%u]\n", current_frame->StackAllocated);
+            FoxAsm("stp x29, x30, [sp, #{}]", current_frame->StackAllocated);
             // Move the FP back to ignore the storage for the above
-            BC_PRINT_OP("add x29, sp, #16");
+            FoxAsm("add x29, sp, #16");
         }
         else {
-            BC_PRINT_OP("");
+            FoxAsm("");
         }
     }
     else if (op_spec == IrSpecMarker_FrameEnd) {
@@ -2808,22 +2644,17 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
             EmitFrameRestore();
         }
 
-        BC_PRINT_OP("// End of frame");
         FramePop();
 
         // Reset the current stack frame
     }
     else if (op_spec == IrSpecMarker_ParamsBegin) {
-        BC_PRINT_OP("// params begin");
     }
     else if (op_spec == IrSpecMarker_EntryPoint) {
         mEmitDefinitionAsEntryPoint = true;
-        BC_PRINT_OP("// Entry point");
     }
     else if (op_spec == IrSpecMarker_FunctionBranches) {
         mFunctionContainsBranches = true;
-
-        BC_PRINT_OP("// Branches");
     }
 }
 
@@ -2832,29 +2663,27 @@ void FoxIRToArm64::DoVariable(char* s, uint8 op_base, uint8 op_spec)
 {
     if (op_spec == IrSpecVariable_Get_Int32) {
         uint16 var_index = Read16();
-        // BC_PRINT_OP("vget [i32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(dest_reg));
 
         const FoxIRRegister dest_ir_reg = static_cast<FoxIRRegister>(Read16());
         const FoxArm64Register dest_reg = GetArmRegFromIRReg(dest_ir_reg);
 
         const uint32 var_stack_offset = GetCurrentFrame()->StackAllocated - ((var_index + 1) * 4);
 
-        BC_PRINT_OP("ldr %s, [sp, #%u]", GetRegisterName(dest_reg), var_stack_offset);
+        FoxAsm("ldr {}, [sp, #{}]", GetRegisterName(dest_reg), var_stack_offset);
     }
     else if (op_spec == IrSpecVariable_Set_Int32) {
         uint16 var_index = Read16();
         uint32 value = Read32();
-        // BC_PRINT_OP("vset [i32] $%d, %d", var_index, value);
 
         FoxArm64Register reg = RegisterRequest(Usage_General);
 
         const char* reg_name = GetRegisterName(reg);
 
-        printf("mov %s, #%d\n", reg_name, static_cast<int32>(value));
+        FoxAsm("mov {}, #{}", reg_name, static_cast<int32>(value));
 
         const uint32 var_stack_offset = GetCurrentFrame()->StackAllocated - ((var_index + 1) * 4);
 
-        BC_PRINT_OP("str %s, [sp, #%u]", reg_name, var_stack_offset);
+        FoxAsm("str {}, [sp, #{}]", reg_name, var_stack_offset);
 
         RegisterRelease(reg);
     }
@@ -2864,15 +2693,14 @@ void FoxIRToArm64::DoVariable(char* s, uint8 op_base, uint8 op_spec)
 
         const uint32 var_stack_offset = GetCurrentFrame()->StackAllocated - ((var_index + 1) * 4);
 
-        BC_PRINT_OP("str %s, [sp, #%u]", GetRegisterName(GetArmRegFromIRReg(reg)), var_stack_offset);
-        // BC_PRINT_OP("vset [r32] $%d, %s", var_index, FoxIREmitter::GetRegisterName(reg));
+        FoxAsm("str {}, [sp, #{}]", GetRegisterName(GetArmRegFromIRReg(reg)), var_stack_offset);
     }
 }
 
 
 void FoxIRToArm64::Print()
 {
-    printf(".global _main\n\n");
+    FoxAsm(".global _main\n");
     while (mBytecodeIndex < mBytecode.Size()) {
         PrintOp();
     }
@@ -2880,7 +2708,7 @@ void FoxIRToArm64::Print()
 
 void FoxIRToArm64::PrintOp()
 {
-    uint32 bc_index = mBytecodeIndex;
+    // uint32 bc_index = mBytecodeIndex;
 
     uint16 op_full = Read16();
 
@@ -2925,9 +2753,9 @@ void FoxIRToArm64::PrintOp()
         break;
     }
 
-    printf("%-25s", s);
+    // printf("%-25s", s);
 
-    printf("\t// Offset: %u\n", bc_index);
+    // printf("\t// Offset: %u", bc_index);
 }
 
 uint32 FoxIRToArm64::MakeValueFactorOf16(uint32 value)
