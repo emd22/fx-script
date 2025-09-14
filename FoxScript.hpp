@@ -352,21 +352,21 @@ struct FoxVar : public FoxLabelledData
     }
 };
 
-class FoxVM;
+// class FoxVM;
 
 
-struct FoxExternalFunc
-{
-    // using FuncType = void (*)(FoxInterpreter& interpreter, std::vector<FoxValue>& params, FoxValue* return_value);
+// struct FoxExternalFunc
+// {
+//     // using FuncType = void (*)(FoxInterpreter& interpreter, std::vector<FoxValue>& params, FoxValue* return_value);
 
-    using FuncType = void (*)(FoxVM* vm, std::vector<FoxValue>& params, FoxValue* return_value);
+//     // using FuncType = void (*)(FoxVM* vm, std::vector<FoxValue>& params, FoxValue* return_value);
 
-    FoxHash HashedName = 0;
-    FuncType Function = nullptr;
+//     FoxHash HashedName = 0;
+//     // FuncType Function = nullptr;
 
-    std::vector<FoxValue::ValueType> ParameterTypes;
-    bool IsVariadic = false;
-};
+//     std::vector<FoxValue::ValueType> ParameterTypes;
+//     bool IsVariadic = false;
+// };
 
 struct FoxScope
 {
@@ -429,7 +429,7 @@ public:
     FoxVar* FindVar(FoxHash hashed_name);
 
     FoxFunction* FindFunction(FoxHash hashed_name);
-    FoxExternalFunc* FindExternalFunction(FoxHash hashed_name);
+    // FoxExternalFunc* FindExternalFunction(FoxHash hashed_name);
 
     FoxAstNode* TryParseKeyword(FoxAstBlock* parent_block);
 
@@ -463,7 +463,7 @@ public:
      * @brief Parses and executes a script.
      * @param interpreter The interpreter to execute with
      */
-    void Execute(FoxVM& vm);
+    void Execute();
 
     /**
      * @brief Executes a command on a script. Defaults to parsing with command style syntax.
@@ -475,7 +475,7 @@ public:
     Token& GetToken(int offset = 0);
     Token& EatToken(TT token_type);
 
-    void RegisterExternalFunc(FoxHash func_name, std::vector<FoxValue::ValueType> param_types, FoxExternalFunc::FuncType func, bool is_variadic);
+    // void RegisterExternalFunc(FoxHash func_name, std::vector<FoxValue::ValueType> param_types, FoxExternalFunc::FuncType func, bool is_variadic);
 
     void DefineExternalVar(const char* type, const char* name, const FoxValue& value);
 
@@ -498,7 +498,7 @@ private:
         return nullptr;
     }
 
-    void DefineDefaultExternalFunctions();
+    // void DefineDefaultExternalFunctions();
 
     Token* CreateTokenFromString(FoxTokenizer::TokenType type, const char* text);
     void CreateInternalVariableTokens();
@@ -507,7 +507,7 @@ private:
     FoxMPPagedArray<FoxScope> mScopes;
     FoxScope* mCurrentScope;
 
-    std::vector<FoxExternalFunc> mExternalFuncs;
+    // std::vector<FoxExternalFunc> mExternalFuncs;
 
     std::vector<FoxAstDocComment*> CurrentDocComments;
 
@@ -636,49 +636,6 @@ public:
     // FoxAstBlock* mRootBlock = nullptr;
 };
 
-/////////////////////////////////////////////
-// Script Bytecode Emitter
-/////////////////////////////////////////////
-
-enum FoxBCRegister : uint8
-{
-    FX_REG_NONE = 0x00,
-    FX_REG_X0,
-    FX_REG_X1,
-    FX_REG_X2,
-    FX_REG_X3,
-
-    /**
-     * @brief Return address register.
-     */
-    FX_REG_RA,
-
-    /**
-     * @brief Register that contains the result of an operation.
-     */
-    FX_REG_XR,
-
-    /**
-     * @brief Register that contains the stack pointer for the VM.
-     */
-    FX_REG_SP,
-
-    FX_REG_SIZE,
-};
-
-
-enum FoxRegisterFlag : uint16
-{
-    FX_REGFLAG_NONE = 0x00,
-    FX_REGFLAG_X0 = 0x01,
-    FX_REGFLAG_X1 = 0x02,
-    FX_REGFLAG_X2 = 0x04,
-    FX_REGFLAG_X3 = 0x08,
-    FX_REGFLAG_RA = 0x10,
-    FX_REGFLAG_XR = 0x20,
-};
-
-
 enum FoxIRRegister : uint8
 {
     /* General Purpose (32 bit) registers */
@@ -699,16 +656,6 @@ enum FoxIRRegister : uint8
     FX_IR_SP,
 };
 
-inline FoxRegisterFlag operator|(FoxRegisterFlag a, FoxRegisterFlag b)
-{
-    return static_cast<FoxRegisterFlag>(static_cast<uint16>(a) | static_cast<uint16>(b));
-}
-
-inline FoxRegisterFlag operator&(FoxRegisterFlag a, FoxRegisterFlag b)
-{
-    return static_cast<FoxRegisterFlag>(static_cast<uint16>(a) & static_cast<uint16>(b));
-}
-
 struct FoxBytecodeVarHandle
 {
     FoxHash HashedName = 0;
@@ -726,337 +673,6 @@ struct FoxBytecodeFunctionHandle
     FoxHash HashedName = 0;
     uint32 BytecodeIndex = 0;
 };
-
-class FoxBCEmitter
-{
-public:
-    FoxBCEmitter() = default;
-
-    void BeginEmitting(FoxAstNode* node);
-    void Emit(FoxAstNode* node);
-
-    enum RhsMode
-    {
-        RHS_FETCH_TO_REGISTER,
-
-        /**
-         * @brief Pushes the value to the stack, assuming that the value does not exist yet.
-         */
-        RHS_DEFINE_IN_MEMORY,
-
-        RHS_ASSIGN_TO_HANDLE,
-    };
-
-    static FoxBCRegister RegFlagToReg(FoxRegisterFlag reg_flag);
-    static FoxRegisterFlag RegToRegFlag(FoxBCRegister reg);
-
-    static const char* GetRegisterName(FoxBCRegister reg);
-
-    FoxMPPagedArray<uint8> mBytecode {};
-
-    enum VarDeclareMode
-    {
-        DECLARE_DEFAULT,
-        DECLARE_NO_EMIT,
-    };
-
-
-private:
-    void EmitBlock(FoxAstBlock* block);
-    void EmitFunction(FoxAstFunctionDecl* function);
-    void DoFunctionCall(FoxAstFunctionCall* call);
-    FoxBytecodeVarHandle* DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
-    void EmitAssign(FoxAstAssign* assign);
-    FoxBytecodeVarHandle* DefineAndFetchParam(FoxAstNode* param_decl_node);
-    FoxBytecodeVarHandle* DefineReturnVar(FoxAstVarDecl* decl);
-
-    FoxBCRegister EmitVarFetch(FoxAstVarRef* ref, RhsMode mode);
-
-    void DoLoad(uint32 stack_offset, FoxBCRegister output_reg, bool force_absolute = false);
-    void DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute = false);
-    void DoSaveReg32(uint32 stack_offset, FoxBCRegister reg, bool force_absolute = false);
-
-    void EmitPush32(uint32 value);
-    void EmitPush32r(FoxBCRegister reg);
-
-    void EmitPop32(FoxBCRegister output_reg);
-
-    void EmitLoad32(int offset, FoxBCRegister output_reg);
-    void EmitLoadAbsolute32(uint32 position, FoxBCRegister output_reg);
-
-    void EmitSave32(int16 offset, uint32 value);
-    void EmitSaveReg32(int16 offset, FoxBCRegister reg);
-
-    void EmitSaveAbsolute32(uint32 offset, uint32 value);
-    void EmitSaveAbsoluteReg32(uint32 offset, FoxBCRegister reg);
-
-    void EmitJumpRelative(uint16 offset);
-    void EmitJumpAbsolute(uint32 position);
-    void EmitJumpAbsoluteReg32(FoxBCRegister reg);
-    void EmitJumpCallAbsolute(uint32 position);
-    void EmitJumpReturnToCaller();
-    void EmitJumpCallExternal(FoxHash hashed_name);
-
-    void EmitMoveInt32(FoxBCRegister reg, uint32 value);
-
-    void EmitParamsStart();
-    void EmitType(FoxValue::ValueType type);
-
-    uint32 EmitDataString(char* str, uint16 length);
-
-    FoxBCRegister EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle);
-
-    FoxBCRegister EmitRhs(FoxAstNode* rhs, RhsMode mode, FoxBytecodeVarHandle* handle);
-
-    FoxBCRegister EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle);
-    FoxBCRegister EmitLiteralString(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle);
-
-
-    void WriteOp(uint8 base_op, uint8 spec_op);
-    void Write16(uint16 value);
-    void Write32(uint32 value);
-
-    FoxBCRegister FindFreeRegister();
-
-    FoxBytecodeVarHandle* FindVarHandle(FoxHash hashed_name);
-    FoxBytecodeFunctionHandle* FindFunctionHandle(FoxHash hashed_name);
-
-    void PrintBytecode();
-
-    void MarkRegisterUsed(FoxBCRegister reg);
-    void MarkRegisterFree(FoxBCRegister reg);
-
-public:
-    FoxMPPagedArray<FoxBytecodeVarHandle> VarHandles;
-    std::vector<FoxBytecodeFunctionHandle> FunctionHandles;
-
-private:
-    FoxRegisterFlag mRegsInUse = FX_REGFLAG_NONE;
-
-    int64 mStackOffset = 0;
-    uint32 mStackSize = 0;
-
-    uint16 mScopeIndex = 0;
-};
-
-class FoxBCPrinter
-{
-public:
-    FoxBCPrinter(FoxMPPagedArray<uint8>& bytecode)
-    {
-        mBytecode = bytecode;
-        mBytecode.DoNotDestroy = true;
-    }
-
-    void Print();
-    void PrintOp();
-
-
-private:
-    uint16 Read16();
-    uint32 Read32();
-
-    void DoPush(char* s, uint8 op_base, uint8 op_spec);
-    void DoPop(char* s, uint8 op_base, uint8 op_spec);
-    void DoLoad(char* s, uint8 op_base, uint8 op_spec);
-    void DoArith(char* s, uint8 op_base, uint8 op_spec);
-    void DoSave(char* s, uint8 op_base, uint8 op_spec);
-    void DoJump(char* s, uint8 op_base, uint8 op_spec);
-    void DoData(char* s, uint8 op_base, uint8 op_spec);
-    void DoType(char* s, uint8 op_base, uint8 op_spec);
-    void DoMove(char* s, uint8 op_base, uint8 op_spec);
-
-private:
-    uint32 mBytecodeIndex = 0;
-    FoxMPPagedArray<uint8> mBytecode;
-};
-
-
-///////////////////////////////////////////
-// Bytecode VM
-///////////////////////////////////////////
-
-struct FoxVMCallFrame
-{
-    uint32 StartStackIndex = 0;
-};
-
-class FoxVM
-{
-public:
-    FoxVM() = default;
-
-    void Start(FoxMPPagedArray<uint8>&& bytecode)
-    {
-        mBytecode = std::move(bytecode);
-        mPushedTypes.Create(64);
-
-        Stack = FX_SCRIPT_ALLOC_MEMORY(uint8, 1024);
-        // mStackOffset = 0;
-        Registers[FX_REG_SP] = 0;
-        memset(Registers, 0, sizeof(Registers));
-
-        while (mPC < mBytecode.Size()) {
-            ExecuteOp();
-        }
-
-        PrintRegisters();
-    }
-
-    void PrintRegisters();
-
-    void Push16(uint16 value);
-    void Push32(uint32 value);
-
-    uint32 Pop32();
-
-private:
-    void ExecuteOp();
-
-    void DoPush(uint8 op_base, uint8 op_spec);
-    void DoPop(uint8 op_base, uint8 op_spec);
-    void DoLoad(uint8 op_base, uint8 op_spec);
-    void DoArith(uint8 op_base, uint8 op_spec);
-    void DoSave(uint8 op_base, uint8 op_spec);
-    void DoJump(uint8 op_base, uint8 op_spec);
-    void DoData(uint8 op_base, uint8 op_spec);
-    void DoType(uint8 op_base, uint8 op_spec);
-    void DoMove(uint8 op_base, uint8 op_spec);
-
-    uint16 Read16();
-    uint32 Read32();
-
-    FoxVMCallFrame& PushCallFrame();
-    FoxVMCallFrame* GetCurrentCallFrame();
-    void PopCallFrame();
-
-    FoxExternalFunc* FindExternalFunction(FoxHash hashed_name);
-
-public:
-    // NONE, X0, X1, X2, X3, RA, XR, SP
-    int32 Registers[FX_REG_SIZE];
-
-    uint8* Stack = nullptr;
-
-    std::vector<FoxExternalFunc> mExternalFuncs;
-
-    FoxMPPagedArray<uint8> mBytecode;
-
-private:
-    uint32 mPC = 0;
-
-
-    bool mIsInCallFrame = false;
-
-    FoxVMCallFrame mCallFrames[8];
-    int mCallFrameIndex = 0;
-
-    bool mIsInParams = false;
-    FoxMPPagedArray<FoxValue::ValueType> mPushedTypes;
-
-    FoxValue::ValueType mCurrentType = FoxValue::NONETYPE;
-};
-
-////////////////////////////////////////////////
-// Script Interpreter
-////////////////////////////////////////////////
-#if 0
-class FoxInterpreter
-{
-public:
-    FoxInterpreter() = default;
-
-    void PushScope();
-    void PopScope();
-
-    FoxVar* FindVar(FoxHash hashed_name);
-    FoxFunction* FindFunction(FoxHash hashed_name);
-    FoxExternalFunc* FindExternalFunction(FoxHash hashed_name);
-
-    /**
-     * @brief Evaluates and gets the immediate value if `value` is a reference, or returns the value if it is already immediate.
-     * @param value The value to query from
-     * @return the immediate(literal) value
-     */
-    const FoxValue& GetImmediateValue(const FoxValue& value);
-
-    void DefineExternalVar(const char* type, const char* name, const FoxValue& value);
-
-private:
-    friend class FoxConfigScript;
-    void Create(FoxAstBlock* root_block);
-
-    void Visit(FoxAstNode* node);
-
-    void Interpret();
-
-    FoxValue VisitExternalCall(FoxAstFunctionCall* call, FoxExternalFunc& func);
-    FoxValue VisitFunctionCall(FoxAstFunctionCall* call);
-    void VisitAssignment(FoxAstAssign* assign);
-    FoxValue VisitRhs(FoxAstNode* node);
-
-    bool CheckExternalCallArgs(FoxAstFunctionCall* call, FoxExternalFunc& func);
-
-
-
-private:
-    FoxAstNode* mRootBlock = nullptr;
-
-    bool mInCommandMode = false;
-
-    std::vector<FoxExternalFunc> mExternalFuncs;
-
-    FoxMPPagedArray<FoxScope> mScopes;
-    FoxScope* mCurrentScope = nullptr;
-};
-
-#endif
-/////////////////////////////////////
-// Bytecode to x86 Transpiler
-/////////////////////////////////////
-
-
-class FoxTranspilerX86
-{
-public:
-    FoxTranspilerX86(FoxMPPagedArray<uint8>& bytecode)
-    {
-        mBytecode = bytecode;
-        mBytecode.DoNotDestroy = true;
-    }
-
-    void Print();
-    void PrintOp();
-
-
-private:
-    uint16 Read16();
-    uint32 Read32();
-
-    void DoPush(char* s, uint8 op_base, uint8 op_spec);
-    void DoPop(char* s, uint8 op_base, uint8 op_spec);
-    void DoLoad(char* s, uint8 op_base, uint8 op_spec);
-    void DoArith(char* s, uint8 op_base, uint8 op_spec);
-    void DoSave(char* s, uint8 op_base, uint8 op_spec);
-    void DoJump(char* s, uint8 op_base, uint8 op_spec);
-    void DoData(char* s, uint8 op_base, uint8 op_spec);
-    void DoType(char* s, uint8 op_base, uint8 op_spec);
-    void DoMove(char* s, uint8 op_base, uint8 op_spec);
-
-
-    void StrOut(const char* fmt, ...);
-
-private:
-    uint32 mBytecodeIndex = 0;
-
-    uint32 mSizePushedInFunction = 0;
-    bool mIsInFunction = false;
-
-    int mTextIndent = 0;
-
-    FoxMPPagedArray<uint8> mBytecode;
-};
-
 
 ////////////////////////////////////////////
 // IR Emitter
@@ -1183,7 +799,7 @@ public:
     std::vector<FoxBytecodeFunctionHandle> FunctionHandles;
 
 private:
-    FoxRegisterFlag mRegsInUse = FX_REGFLAG_NONE;
+    uint32 mRegsInUse = 0;
 
     int64 mStackOffset = 0;
     uint32 mStackSize = 0;

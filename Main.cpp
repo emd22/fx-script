@@ -12,9 +12,9 @@ int main()
 
     script.DefineExternalVar("playerid", "emd22", FoxValue(FoxValue::INT, 1020));
 
-    FoxVM vm;
+    // FoxVM vm;
 
-    script.Execute(vm);
+    script.Execute();
 
     std::string command = "";
 
