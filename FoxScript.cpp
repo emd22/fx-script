@@ -1055,12 +1055,17 @@ void FoxIREmitter::Emit(FoxAstNode* node)
                     // Get the variable and load it into a register.
                     FoxBytecodeVarHandle* var_to_return = FindVarHandle(var_ref->Name->GetHash());
 
-                    FoxIRRegister var_to_return_reg = FX_IR_REG_RETURN_VALUE;
+                    FoxIRRegister return_result_reg = FX_IR_REG_RETURN_VALUE;
 
-                    MARK_REGISTER_USED(var_to_return_reg);
+                    MARK_REGISTER_USED(return_result_reg);
 
                     if (var_to_return) {
-                        EmitVariableGetInt32(var_to_return->VarIndexInScope, var_to_return_reg);
+                        if (var_to_return->Register != FX_IR_NONE) {
+                            EmitMoveReg32(return_result_reg, var_to_return->Register);
+                        }
+                        else {
+                            EmitVariableGetInt32(var_to_return->VarIndexInScope, return_result_reg);
+                        }
                     }
 
                     // if (var_to_return) {
@@ -1068,10 +1073,10 @@ void FoxIREmitter::Emit(FoxAstNode* node)
                     // }
 
                     // Free the register as we will not need it after scope end
-                    MARK_REGISTER_FREE(var_to_return_reg);
+                    MARK_REGISTER_FREE(return_result_reg);
 
                     // Return with the register
-                    EmitJumpReturnToCallerReg32(var_to_return_reg);
+                    EmitJumpReturnToCallerReg32(return_result_reg);
                 }
             }
 
@@ -1120,7 +1125,7 @@ FoxBytecodeFunctionHandle* FoxIREmitter::FindFunctionHandle(FoxHash hashed_name)
 
 FoxIRRegister FoxIREmitter::FindFreeReg32()
 {
-    for (int register_index = FX_IR_GW0; register_index <= FX_IR_GW3; register_index++) {
+    for (int register_index = FX_IR_GW0; register_index <= FX_IR_GW7; register_index++) {
         uint32 gp_r = (1 << register_index);
 
         if (!(mRegsInUse & gp_r)) {
@@ -1128,7 +1133,7 @@ FoxIRRegister FoxIREmitter::FindFreeReg32()
         }
     }
 
-    return FX_IR_GW3;
+    return FX_IR_GW6;
 }
 
 FoxIRRegister FoxIREmitter::FindFreeReg64()
@@ -1155,6 +1160,14 @@ const char* FoxIREmitter::GetRegisterName(FoxIRRegister reg)
         return "GW2";
     case FX_IR_GW3:
         return "GW3";
+    case FX_IR_GW4:
+        return "GW4";
+    case FX_IR_GW5:
+        return "GW5";
+    case FX_IR_GW6:
+        return "GW6";
+    case FX_IR_GW7:
+        return "GW7";
     case FX_IR_GX0:
         return "GX0";
     case FX_IR_GX1:
@@ -1359,6 +1372,11 @@ void FoxIREmitter::EmitMoveInt32(FoxIRRegister reg, uint32 value)
 
 void FoxIREmitter::EmitMoveReg32(FoxIRRegister dest_reg, FoxIRRegister src_reg)
 {
+    // Ignore if there is no work to do
+    if (dest_reg == src_reg) {
+        return;
+    }
+
     WriteOp(IrBase_Move, (IrSpecMove_Reg32 << 4) | (dest_reg & 0x0F));
     Write16(src_reg);
 }
@@ -1435,36 +1453,50 @@ uint32 FoxIREmitter::EmitDataString(char* str, uint16 length)
 
 FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle)
 {
-    bool will_preserve_lhs = false;
-    // Load the A and B values into the registers
-    FoxIRRegister a_reg = EmitRhs(binop->Left, RhsMode::RHS_FETCH_TO_REGISTER, handle);
+    bool rhs_is_binop = false;
 
-    // Since there is a chance that this register will be clobbered (by binop, function call, etc), we will
-    // push the value of the register here and return it after processing the RHS
-    if (binop->Right->NodeType != FX_AST_LITERAL) {
-        will_preserve_lhs = true;
-        EmitPush32r(a_reg);
+    FoxIRRegister lhs_register = EmitRhsToRegister(binop->Left, FX_IR_NONE, true);
+    FoxIRRegister rhs_register = FX_IR_NONE;
+
+    if (binop->Right->NodeType == FX_AST_BINOP) {
+        rhs_is_binop = true;
+
+        FoxAstBinop* binop_node = reinterpret_cast<FoxAstBinop*>(binop->Right);
+        MarkRegisterFree(rhs_register);
+        rhs_register = EmitRhsToRegister(binop_node->Left, FX_IR_NONE, true);
     }
-
-    FoxIRRegister b_reg = EmitRhs(binop->Right, RhsMode::RHS_FETCH_TO_REGISTER, handle);
-
-    // Retrieve the previous LHS
-    if (will_preserve_lhs) {
-        EmitPop32(a_reg);
+    else {
+        rhs_register = EmitRhsToRegister(binop->Right, FX_IR_NONE, true);
     }
 
     if (binop->OpToken->Type == TT::Plus) {
         WriteOp(IrBase_Arith, IrSpecArith_Add_Reg32);
 
-        mBytecode.Insert(a_reg);
-        mBytecode.Insert(b_reg);
+        mBytecode.Insert(lhs_register);
+        mBytecode.Insert(rhs_register);
+    }
+
+    if (rhs_is_binop) {
+        MarkRegisterFree(lhs_register);
+
+        FoxAstBinop second_binop;
+        second_binop.OpToken = binop->OpToken;
+        second_binop.Left = binop->Left;
+        second_binop.Right = reinterpret_cast<FoxAstBinop*>(binop->Right)->Right;
+
+        lhs_register = EmitBinop(&second_binop, handle);
     }
 
     // We no longer need the lhs or rhs registers, free em
     // MARK_REGISTER_FREE(a_reg);
-    MARK_REGISTER_FREE(b_reg);
+    MARK_REGISTER_FREE(rhs_register);
 
-    return a_reg;
+    if (handle != nullptr) {
+        handle->Register = lhs_register;
+    }
+
+
+    return lhs_register;
 }
 
 FoxIRRegister FoxIREmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
@@ -1484,9 +1516,15 @@ FoxIRRegister FoxIREmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
         return FX_IR_GW0;
     }
 
+    if (var_handle->Register != FX_IR_NONE) {
+        return var_handle->Register;
+    }
+
     FoxIRRegister reg = FindFreeReg32();
 
     MARK_REGISTER_USED(reg);
+
+    var_handle->Register = reg;
 
     // DoLoad(var_handle->Offset, reg, force_absolute_load);
     EmitVariableGetInt32(var_handle->VarIndexInScope, reg);
@@ -1698,6 +1736,77 @@ void FoxIREmitter::EmitMarker(IrSpecMarker spec)
     WriteOp(IrBase_Marker, spec);
 }
 
+FoxIRRegister FoxIREmitter::EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister dest_register, bool auto_register)
+{
+    if (auto_register) {
+        dest_register = FindFreeReg32();
+    }
+
+    MarkRegisterUsed(dest_register);
+
+    if (rhs->NodeType == FX_AST_LITERAL) {
+        FoxAstLiteral* literal = reinterpret_cast<FoxAstLiteral*>(rhs);
+
+        // Move the integer directly into the register
+        if (literal->Value.Type == FoxValue::INT) {
+            EmitMoveInt32(dest_register, literal->Value.ValueInt);
+            return dest_register;
+        }
+
+        else if (literal->Value.Type == FoxValue::REF) {
+            FoxHash var_name_hash = literal->Value.ValueRef->Name->GetHash();
+            FoxBytecodeVarHandle* var_handle = FindVarHandle(var_name_hash);
+
+            if (!var_handle) {
+                FoxLogError("Could not find variable handle with hash {}!", var_name_hash);
+                return dest_register;
+            }
+
+            // If the variable is already loaded into a register and we automatically select the register,
+            // return the register that the value is currently loaded into.
+            if (var_handle->Register != FX_IR_NONE && auto_register) {
+                MarkRegisterFree(dest_register);
+
+                return var_handle->Register;
+            }
+
+            // If the variable is already loaded into a register and we want it in `dest_register`, move it into
+            // the destination register.
+            if (var_handle->Register != FX_IR_NONE) {
+                EmitMoveReg32(dest_register, var_handle->Register);
+                return dest_register;
+            }
+
+            // The variable is not already loaded, so we can load it from the stack into our destination.
+            EmitVariableGetInt32(var_handle->VarIndexInScope, dest_register);
+
+            return dest_register;
+        }
+    }
+
+    else if (rhs->NodeType == FX_AST_BINOP) {
+        FoxIRRegister result_register = EmitBinop(reinterpret_cast<FoxAstBinop*>(rhs), nullptr);
+
+        EmitMoveReg32(dest_register, dest_register);
+
+        return dest_register;
+    }
+    else if (rhs->NodeType == FX_AST_ACTIONCALL) {
+        DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(rhs));
+
+        // Move return value into our destination register
+        EmitMoveReg32(dest_register, FX_IR_REG_RETURN_VALUE);
+
+        return dest_register;
+    }
+
+    FoxLogWarning("No instructions emitted for RHS");
+
+    MarkRegisterFree(dest_register);
+
+    return FX_IR_NONE;
+}
+
 FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     if (rhs->NodeType == FX_AST_LITERAL) {
@@ -1714,7 +1823,6 @@ FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode,
             FoxIRRegister output_register = EmitVarFetch(literal->Value.ValueRef, mode);
             if (mode == IRRhsMode::RHS_ASSIGN_TO_HANDLE) {
                 // DoSaveReg32(handle->Offset, output_register);
-                //
                 EmitVariableSetReg32(handle->VarIndexInScope, output_register);
             }
 
@@ -1775,6 +1883,8 @@ FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode,
             // DoSaveReg32(handle->Offset, result_register, force_absolute_save);
 
             EmitVariableSetReg32(handle->VarIndexInScope, result_register);
+            handle->Register = result_register;
+
             MARK_REGISTER_FREE(result_register);
 
             return FX_IR_GW3;
@@ -1863,36 +1973,20 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
     std::vector<uint32> call_locations;
     call_locations.reserve(8);
 
-    // Push all params to stack
-    for (FoxAstNode* param : call->Params) {
-        // FoxRegister reg =
-        if (param->NodeType == FX_AST_ACTIONCALL) {
-            EmitRhs(param, RhsMode::RHS_DEFINE_IN_MEMORY, nullptr);
-            call_locations.push_back(mStackOffset - 4);
-        }
-        // MARK_REGISTER_FREE(reg);
-    }
-
-    // EmitPush32r(FX_REG_RA);
 
     EmitParamsStart();
 
     int call_location_index = 0;
 
-    // Push all params to stack
+    uint32 precall_regs_in_use = mRegsInUse;
+
+    int parameter_index = 0;
+
+    // Fetch all parameters into registers
     for (FoxAstNode* param : call->Params) {
-        if (param->NodeType == FX_AST_ACTIONCALL) {
-            FoxIRRegister temp_register = FindFreeReg32();
+        EmitRhsToRegister(param, static_cast<FoxIRRegister>(FX_IR_GW0 + parameter_index));
 
-            DoLoad(call_locations[call_location_index], temp_register);
-            call_location_index++;
-
-            EmitPush32r(temp_register);
-
-            continue;
-        }
-
-        EmitRhs(param, RhsMode::RHS_DEFINE_IN_MEMORY, nullptr);
+        parameter_index++;
     }
 
     // The handle could not be found, write it as a possible external symbol.
@@ -1913,10 +2007,11 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
 
     EmitJumpCallAbsolute(handle->HashedName);
 
-    // EmitPop32(FX_REG_RA);
+    // Free all of the parameter used registers
+    mRegsInUse = precall_regs_in_use;
 }
 
-FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_node)
+FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_node, uint16 index)
 {
     if (param_decl_node->NodeType != FX_AST_VARDECL) {
         FoxLogError("Param node type is not vardecl!");
@@ -1931,9 +2026,19 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_n
         return nullptr;
     }
 
-    assert(handle->SizeOnStack == 4);
+    FoxIRRegister reg = static_cast<FoxIRRegister>(FX_IR_GW0 + index);
 
-    mStackOffset += handle->SizeOnStack;
+    if ((mRegsInUse & (1u << reg))) {
+        FoxLogWarning("Clobbering register {} for function parameter", GetRegisterName(reg));
+    }
+
+    MarkRegisterUsed(reg);
+
+    handle->Register = reg;
+
+    // assert(handle->SizeOnStack == 4);
+
+    // mStackOffset += handle->SizeOnStack;
 
     return handle;
 }
@@ -1981,8 +2086,12 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
 
     // Emit the body of the function
     {
+        int parameter_index = 0;
+
         for (FoxAstNode* param_decl_node : function->Params->Statements) {
-            DefineAndFetchParam(param_decl_node);
+            DefineAndFetchParam(param_decl_node, parameter_index);
+
+            parameter_index++;
         }
 
         if (function->Name) {

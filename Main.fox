@@ -1,15 +1,9 @@
-fn Get2() int
+fn TestFn(int x, int y, int z) int
 {
-    return 2;
-}
-
-fn Get5() int
-{
-    local int value = Get2() + 3;
+    local int value = x + y + z;
     return value;
 }
 
-local int x = Get5();
-local int y = x + 2;
+local int final_result = TestFn(3, 2, 1);
 
-return y;
+return final_result;

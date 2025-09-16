@@ -1,35 +1,24 @@
 .global _main
 
-Get2:
-	mov w0, #2
-	ret
 // SAlloc 4
-Get5:
-	sub sp, sp, #32
-	stp x29, x30, [sp, #16]
-	add x29, sp, #16
-	bl Get2
-	mov w8, w0
-	mov w9, #3
+TestFn:
+	sub sp, sp, #16
 	add w8, w8, w9
+	add w8, w8, w10
 	str w8, [sp, #12]
-	ldr w0, [sp, #12]
-	ldp x29, x30, [sp, #16]
-	add sp, sp, #32
+	mov w0, w8
+	add sp, sp, #16
 	ret
-// SAlloc 4
 // SAlloc 4
 _main:
 	sub sp, sp, #32
 	stp x29, x30, [sp, #16]
 	add x29, sp, #16
-	bl Get5
-	str w0, [sp, #12]
-	ldr w8, [sp, #12]
+	mov w8, #3
 	mov w9, #2
-	add w8, w8, w9
-	str w8, [sp, #8]
-	ldr w0, [sp, #8]
+	mov w10, #1
+	bl TestFn
+	str w0, [sp, #12]
 	ldp x29, x30, [sp, #16]
 	add sp, sp, #32
 	ret

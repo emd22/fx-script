@@ -663,6 +663,10 @@ enum FoxIRRegister : uint8
     FX_IR_GW1,
     FX_IR_GW2,
     FX_IR_GW3,
+    FX_IR_GW4,
+    FX_IR_GW5,
+    FX_IR_GW6,
+    FX_IR_GW7,
 
     /* General Purpose (64 bit) registers */
     FX_IR_GX0,
@@ -674,6 +678,8 @@ enum FoxIRRegister : uint8
 
     /* Stack pointer */
     FX_IR_SP,
+
+    FX_IR_NONE
 };
 
 struct FoxBytecodeVarHandle
@@ -681,6 +687,8 @@ struct FoxBytecodeVarHandle
     FoxHash HashedName = 0;
     FoxValue::ValueType Type = FoxValue::INT;
     int64 Offset = 0;
+
+    FoxIRRegister Register = FX_IR_NONE;
 
     uint16 VarIndexInScope = 0;
 
@@ -726,6 +734,8 @@ public:
         RHS_DEFINE_IN_MEMORY,
 
         RHS_ASSIGN_TO_HANDLE,
+
+        RHS_NO_OPERATION,
     };
 
     static const char* GetRegisterName(FoxIRRegister reg);
@@ -746,7 +756,7 @@ private:
     void DoFunctionCall(FoxAstFunctionCall* call);
     FoxBytecodeVarHandle* DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
     void EmitAssign(FoxAstAssign* assign);
-    FoxBytecodeVarHandle* DefineAndFetchParam(FoxAstNode* param_decl_node);
+    FoxBytecodeVarHandle* DefineAndFetchParam(FoxAstNode* param_decl_node, uint16 index);
     FoxBytecodeVarHandle* DefineReturnVar(FoxAstVarDecl* decl);
 
     FoxIRRegister EmitVarFetch(FoxAstVarRef* ref, RhsMode mode);
@@ -799,6 +809,9 @@ private:
     FoxIRRegister EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle);
 
     FoxIRRegister EmitRhs(FoxAstNode* rhs, RhsMode mode, FoxBytecodeVarHandle* handle);
+
+    FoxIRRegister EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister dest_register, bool auto_register = false);
+    // FoxIRRegister EmitRhs(FoxAstNode* rhs, RhsMode mode, FoxBytecodeVarHandle* handle);
 
     FoxIRRegister EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle);
     FoxIRRegister EmitLiteralString(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle);
