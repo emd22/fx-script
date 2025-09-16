@@ -162,6 +162,7 @@ enum IrSpecType : uint8
 enum IrSpecMove : uint8
 {
     IrSpecMove_Int32 = 1,
+    IrSpecMove_Reg32,
 };
 
 enum IrSpecMarker : uint8
@@ -174,6 +175,8 @@ enum IrSpecMarker : uint8
 
     IrSpecMarker_EntryPoint,
     IrSpecMarker_FunctionBranches,
+
+    IrSpecMarker_FunctionName,
 };
 
 enum IrSpecVariable : uint8

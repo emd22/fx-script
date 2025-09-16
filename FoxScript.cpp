@@ -25,6 +25,11 @@
 using Token = FoxTokenizer::Token;
 using TT = FoxTokenizer::TokenType;
 
+static uint16 ReverseInt16(uint16 value)
+{
+    return (value >> 8) | (value << 8);
+}
+
 FoxValue FoxValue::None {};
 
 void FoxConfigScript::LoadFile(const char* path)
@@ -1272,6 +1277,12 @@ void FoxIREmitter::EmitMoveInt32(FoxIRRegister reg, uint32 value)
     Write32(value);
 }
 
+void FoxIREmitter::EmitMoveReg32(FoxIRRegister dest_reg, FoxIRRegister src_reg)
+{
+    WriteOp(IrBase_Move, (IrSpecMove_Reg32 << 4) | (dest_reg & 0x0F));
+    Write16(src_reg);
+}
+
 void FoxIREmitter::EmitVariableSetInt32(uint16 var_index, int32 value)
 {
     WriteOp(IrBase_Variable, IrSpecVariable_Set_Int32);
@@ -1311,29 +1322,32 @@ void FoxIREmitter::EmitType(FoxValue::ValueType type)
 
 uint32 FoxIREmitter::EmitDataString(char* str, uint16 length)
 {
-    WriteOp(IrBase_Data, IrSpecData_String);
+    // WriteOp(IrBase_Data, IrSpecData_String);
 
     uint32 start_index = mBytecode.Size();
-
-    uint16 final_length = length + 1;
+    uint16 final_length = length;
 
     // If the length is not a factor of 2 (sizeof uint16) then add a byte of padding
-    if ((final_length & 0x01)) {
+    if ((final_length & 0x01) != 0) {
         ++final_length;
+    }
+    // The string is a factor of two, but there isn't going to be a null byte included. Pad with a whole uint16 to preserve alignment.
+    else {
+        final_length += sizeof(uint16);
     }
 
     Write16(final_length);
 
-    for (int i = 0; i < final_length; i += 2) {
-        mBytecode.Insert(str[i]);
 
+    for (int i = 0; i < final_length; i++) {
         if (i >= length) {
             mBytecode.Insert(0);
-            break;
+            continue;
         }
 
-        mBytecode.Insert(str[i + 1]);
+        mBytecode.Insert(str[i]);
     }
+
 
     return start_index;
 }
@@ -1494,7 +1508,7 @@ void FoxIREmitter::EmitAssign(FoxAstAssign* assign)
 {
     FoxBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->Name->GetHash());
     if (var_handle == nullptr) {
-        FoxLogError("Var '{.{}}' does not exist!", assign->Var->Name->Length, assign->Var->Name->Start);
+        FoxLogError("Var '{:.{}}' does not exist!", assign->Var->Name->Start, assign->Var->Name->Length);
         return;
     }
 
@@ -1659,14 +1673,16 @@ FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode,
 
         else if (mode == RhsMode::RHS_FETCH_TO_REGISTER) {
             // Push the result to a register
-            EmitPush32r(result_register);
+            // EmitPush32r(result_register);
 
-            MARK_REGISTER_FREE(result_register);
 
             // Find a register to output to, and pop the value to there.
             FoxIRRegister output_reg = FindFreeReg32();
-            EmitPop32(output_reg);
+            // EmitPop32(output_reg);
 
+            EmitMoveReg32(output_reg, result_register);
+
+            MARK_REGISTER_FREE(result_register);
             // Mark the output register as used to store it
             MARK_REGISTER_USED(output_reg);
 
@@ -1815,7 +1831,7 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
         return;
     }
 
-    EmitJumpCallAbsolute(handle->BytecodeIndex);
+    EmitJumpCallAbsolute(handle->HashedName);
 
     // EmitPop32(FX_REG_RA);
 }
@@ -1887,6 +1903,12 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
     {
         for (FoxAstNode* param_decl_node : function->Params->Statements) {
             DefineAndFetchParam(param_decl_node);
+        }
+
+        if (function->Name) {
+            EmitMarker(IrSpecMarker_FunctionName);
+            FoxLogDebug("Data Name: {:.{}}\n", function->Name->Start, function->Name->Length);
+            EmitDataString(function->Name->Start, function->Name->Length);
         }
 
         // FoxBytecodeVarHandle* return_var = DefineReturnVar(function->ReturnVar);
@@ -2006,7 +2028,6 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, bool ignore_function_definition
     if (does_block_branch) {
         EmitMarker(IrSpecMarker_FunctionBranches);
     }
-
 
     // After the stack allocations, mark the start of the frame.
     EmitMarker(IrSpecMarker_FrameBegin);
@@ -2240,7 +2261,7 @@ void FoxIRPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
             data_str16[data_index++] = ((value16 << 8) | (value16 >> 8));
         }
 
-        BC_PRINT_OP("datastr {}, {.{}}", length, length, data_str);
+        BC_PRINT_OP("datastr {}, {:.{}}", length, data_str, length);
 
         FX_SCRIPT_FREE(char, data_str);
     }
@@ -2263,7 +2284,13 @@ void FoxIRPrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 
     if (op_spec == IrSpecMove_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("move [i32] {}, {}\t", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
+        BC_PRINT_OP("move [i32] {}, {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
+    }
+    else if (op_spec == IrSpecMove_Reg32) {
+        const char* dest_reg = FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg));
+        const char* src_reg = FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(Read16()));
+
+        BC_PRINT_OP("move [r32] {}, {}", dest_reg, src_reg);
     }
 }
 
@@ -2283,6 +2310,17 @@ void FoxIRPrinter::DoMarker(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == IrSpecMarker_FunctionBranches) {
         BC_PRINT_OP("@Branches");
+    }
+    else if (op_spec == IrSpecMarker_FunctionName) {
+        char name_buffer[256];
+        uint32 name_length = Read16();
+
+        int name_index = 0;
+        for (name_index = 0; name_index < name_length; name_index += 2) {
+            *(reinterpret_cast<uint16*>(&name_buffer[name_index])) = ReverseInt16(Read16());
+        }
+
+        BC_PRINT_OP("@FunctionName {:.{}}", name_buffer, name_length);
     }
 }
 
@@ -2513,8 +2551,14 @@ void FoxIRToArm64::DoJump(char* s, uint8 op_base, uint8 op_spec)
         FoxAsm("jmpar {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecJump_CallAbsolute) {
-        uint32 position = Read32();
-        FoxAsm("bl _R_{}", position);
+        uint32 hashed_name = Read32();
+        FoxIRFunctionRef* ref = GetFunctionRefFromHash(hashed_name);
+        if (ref) {
+            FoxAsm("bl {}", ref->Name);
+        }
+        else {
+            FoxLogError("Could not find label with hash {}!", hashed_name);
+        }
     }
     else if (op_spec == IrSpecJump_CallExternal) {
         uint32 hashed_name = Read32();
@@ -2590,7 +2634,14 @@ void FoxIRToArm64::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 
         FoxAsm("mov {}, #{}", GetRegisterName(dest_reg), value);
     }
+    else if (op_spec == IrSpecMove_Reg32) {
+        const FoxArm64Register dest_reg = GetArmRegFromIRReg(static_cast<FoxIRRegister>(op_reg));
+        const FoxArm64Register src_reg = GetArmRegFromIRReg(static_cast<FoxIRRegister>(Read16()));
+
+        FoxAsm("mov {}, {}", GetRegisterName(dest_reg), GetRegisterName(src_reg));
+    }
 }
+
 
 void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
 {
@@ -2608,11 +2659,22 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
         // as the current opcode is loaded into memory(thus offsetting the bytecode index)
         const uint32 function_bytecode_index = mBytecodeIndex - size_of_opcode;
 
+        FoxIRFunctionRef function_ref {
+            .Name = FX_SCRIPT_ALLOC_MEMORY(char, mCurrentLabelNameLength + 1),
+            .Position = function_bytecode_index,
+        };
+
+        memcpy(function_ref.Name, mCurrentLabelName, mCurrentLabelNameLength);
+        function_ref.Name[mCurrentLabelNameLength] = 0;
+        function_ref.HashedName = FoxHashStr(function_ref.Name);
+
+        mFunctionRefs.Insert(function_ref);
+
         if (mEmitDefinitionAsEntryPoint) {
             FoxAsm("_main:");
         }
         else {
-            FoxAsm("_R_{}:", function_bytecode_index);
+            FoxAsm("{:.{}}:", mCurrentLabelName, mCurrentLabelNameLength);
         }
 
         FoxAsmIncreaseIndent();
@@ -2656,6 +2718,16 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == IrSpecMarker_FunctionBranches) {
         mFunctionContainsBranches = true;
+    }
+    else if (op_spec == IrSpecMarker_FunctionName) {
+        uint32 name_length = Read16();
+
+        int name_index = 0;
+        for (name_index = 0; name_index < name_length; name_index += 2) {
+            *(reinterpret_cast<uint16*>(&mCurrentLabelName[name_index])) = ReverseInt16(Read16());
+        }
+
+        mCurrentLabelNameLength = name_index;
     }
 }
 
@@ -2903,4 +2975,14 @@ const char* FoxIRToArm64::GetRegisterName(FoxArm64Register reg)
     }
 
     return "(unknown)";
+}
+
+FoxIRFunctionRef* FoxIRToArm64::GetFunctionRefFromHash(uint32 hashed_name)
+{
+    for (FoxIRFunctionRef& ref : mFunctionRefs) {
+        if (ref.HashedName == hashed_name) {
+            return &ref;
+        }
+    }
+    return nullptr;
 }

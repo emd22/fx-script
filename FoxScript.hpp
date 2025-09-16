@@ -679,6 +679,13 @@ struct FoxBytecodeFunctionHandle
 ////////////////////////////////////////////
 
 
+struct FoxIRFunctionRef
+{
+    char* Name = nullptr;
+    uint32 HashedName = 0;
+    uint32 Position = 0;
+};
+
 #include "FoxScriptBytecode.hpp"
 
 class FoxIREmitter
@@ -762,6 +769,7 @@ private:
     void EmitVariableSetReg32(uint16 var_index, FoxIRRegister reg);
 
     void EmitMoveInt32(FoxIRRegister reg, uint32 value);
+    void EmitMoveReg32(FoxIRRegister dest_reg, FoxIRRegister src_reg);
 
     void EmitParamsStart();
     void EmitType(FoxValue::ValueType type);
@@ -805,6 +813,7 @@ private:
     uint32 mStackSize = 0;
 
     uint16 mVarsInScope = 0;
+    uint32 mLabelId = 0;
 
     uint16 mScopeIndex = 0;
 
@@ -894,6 +903,8 @@ public:
     {
         mBytecode = bytecode;
         mBytecode.DoNotDestroy = true;
+
+        mFunctionRefs.Create(32);
     }
 
     void Print();
@@ -917,6 +928,8 @@ private:
     void DoVariable(char* s, uint8 op_base, uint8 op_spec);
 
     void EmitFrameRestore();
+
+    FoxIRFunctionRef* GetFunctionRefFromHash(uint32 position);
 
 private:
     // void ResetFrame();
@@ -946,4 +959,9 @@ private:
 
     bool mEmitDefinitionAsEntryPoint = false;
     bool mFunctionContainsBranches = false;
+
+    char mCurrentLabelName[256];
+    uint16 mCurrentLabelNameLength = 0;
+
+    FoxMPPagedArray<FoxIRFunctionRef> mFunctionRefs;
 };
