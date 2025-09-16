@@ -2,4 +2,4 @@
 
 clang Out.asm -o Out
 ./Out
-echo $?
+# echo $?

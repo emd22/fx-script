@@ -1,14 +1,14 @@
 extfn _putchar(int _ch);
 
-fn TestFn(int x, int y, int z) int
+
+fn C_putchar(int ch)
 {
+    _putchar(ch);
 
-    local int value = x + y + z;
-    _putchar(65);
-
-    return value;
+    return;
 }
 
-local int final_result = TestFn(3, 2, 1);
+_putchar(65);
+_putchar(66);
 
-return final_result;
+return 0;

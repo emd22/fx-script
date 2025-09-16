@@ -2000,7 +2000,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
         .VarIndexInScope = mVarsInScope,
     };
 
-    mVarsInScope++;
+    // mVarsInScope++;
 
     VarHandles.Insert(handle);
 
