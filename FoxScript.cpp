@@ -176,6 +176,8 @@ FoxAstNode* FoxConfigScript::TryParseKeyword(FoxAstBlock* parent_block)
     // function [name] ( < [arg type] [arg name] ...> ) { <statements...> }
     constexpr FoxHash kw_function = FoxHashStr("fn");
 
+    constexpr FoxHash kw_extfn = FoxHashStr("extfn");
+
     // local [type] [name] <?assignment> ;
     constexpr FoxHash kw_local = FoxHashStr("local");
 
@@ -188,10 +190,17 @@ FoxAstNode* FoxConfigScript::TryParseKeyword(FoxAstBlock* parent_block)
     // help [name of function] ;
     constexpr FoxHash kw_help = FoxHashStr("help");
 
+    // extern [name of function] ;
+
     if (hash == kw_function) {
         EatToken(TT::Identifier);
         // ParseFunctionDeclare();
         return ParseFunctionDeclare();
+    }
+    if (hash == kw_extfn) {
+        EatToken(TT::Identifier);
+        // ParseFunctionDeclare();
+        return ParseExtfnDeclare();
     }
     if (hash == kw_local) {
         EatToken(TT::Identifier);
@@ -813,6 +822,67 @@ FoxAstFunctionDecl* FoxConfigScript::ParseFunctionDeclare()
     node->Params = params;
 
     FoxFunction function(&name, mCurrentScope, node->Block, node);
+    mCurrentScope->Functions.Insert(function);
+
+    return node;
+}
+
+
+FoxAstFunctionDecl* FoxConfigScript::ParseExtfnDeclare()
+{
+    FoxAstFunctionDecl* node = FX_SCRIPT_ALLOC_NODE(FoxAstFunctionDecl);
+
+    if (!CurrentDocComments.empty()) {
+        node->DocComments = CurrentDocComments;
+        CurrentDocComments.clear();
+    }
+
+    // Name of the function
+    Token& name = EatToken(TT::Identifier);
+
+    node->Name = &name;
+
+    PushScope();
+    EatToken(TT::LParen);
+
+    FoxAstBlock* params = FX_SCRIPT_ALLOC_NODE(FoxAstBlock);
+
+    // Parse the parameter list
+    while (GetToken().Type != TT::RParen) {
+        params->Statements.push_back(ParseVarDeclare());
+
+        if (GetToken().Type == TT::Comma) {
+            EatToken(TT::Comma);
+            continue;
+        }
+
+        break;
+    }
+
+    EatToken(TT::RParen);
+
+    // Parse the return type
+    /*if (GetToken().Type != TT::LBrace) {
+        FoxAstVarDecl* return_decl = ParseVarDeclare();
+        node->ReturnVar = return_decl;
+    }*/
+
+    // Check to see if there is a return type provided
+    if (GetToken().Type != TT::Semicolon) {
+        // There is a return type, declare the __ReturnVal__ variable
+
+        // Get the token for the type
+        Token& type_token = EatToken(TT::Identifier);
+
+        FoxAstVarDecl* return_decl = InternalVarDeclare(mTokenReturnVar, &type_token);
+        node->ReturnVar = return_decl;
+    }
+
+    PopScope();
+
+    node->Params = params;
+
+    FoxFunction function(&name, mCurrentScope, nullptr, node);
     mCurrentScope->Functions.Insert(function);
 
     return node;
@@ -2052,6 +2122,10 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineReturnVar(FoxAstVarDecl* decl)
 
 void FoxIREmitter::EmitFunctionDefinitionsInBlock(FoxAstBlock* block)
 {
+    if (!block) {
+        return;
+    }
+
     for (FoxAstNode* stmt : block->Statements) {
         if (stmt->NodeType == FX_AST_ACTIONDECL) {
             EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(stmt));
@@ -2100,33 +2174,38 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
             EmitDataString(function->Name->Start, function->Name->Length);
         }
 
-        // FoxBytecodeVarHandle* return_var = DefineReturnVar(function->ReturnVar);
+        if (!function->Block) {
+            EmitMarker(IrSpecMarker_ExtFn);
+        }
 
         // Do not check if there are function definitions to be declared when emitting the block here as they are checked above, before any parameters
         // or stack allocations are output.
         EmitBlock(function->Block, true);
 
         // Check to see if there has been a return statement in the function
-        bool block_has_return = false;
 
-        for (FoxAstNode* statement : function->Block->Statements) {
-            if (statement->NodeType == FX_AST_RETURN) {
-                block_has_return = true;
-                break;
+        if (function->Block) {
+            bool block_has_return = false;
+
+            for (FoxAstNode* statement : function->Block->Statements) {
+                if (statement->NodeType == FX_AST_RETURN) {
+                    block_has_return = true;
+                    break;
+                }
             }
-        }
 
-        // There is no return statement in the function's block, add a return statement
-        if (!block_has_return) {
-            EmitJumpReturnToCaller();
+            // There is no return statement in the function's block, add a return statement
+            if (!block_has_return) {
+                EmitJumpReturnToCaller();
 
-            // FoxIRRegister result_register = FindFreeReg32();
+                // FoxIRRegister result_register = FindFreeReg32();
 
-            // MARK_REGISTER_USED(result_register);
+                // MARK_REGISTER_USED(result_register);
 
-            // if (return_var != nullptr) {
-            //     DoLoad(return_var->Offset, result_register);
-            // }
+                // if (return_var != nullptr) {
+                //     DoLoad(return_var->Offset, result_register);
+                // }
+            }
         }
     }
 
@@ -2511,6 +2590,9 @@ void FoxIRPrinter::DoMarker(char* s, uint8 op_base, uint8 op_spec)
 
         BC_PRINT_OP("@FunctionName {:.{}}", name_buffer, name_length);
     }
+    else if (op_spec == IrSpecMarker_ExtFn) {
+        BC_PRINT_OP("@ExtFn");
+    }
 }
 
 
@@ -2740,6 +2822,8 @@ void FoxIRToArm64::DoJump(char* s, uint8 op_base, uint8 op_spec)
         FoxAsm("jmpar {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
     else if (op_spec == IrSpecJump_CallAbsolute) {
+        mInParamsBlock = false;
+
         uint32 hashed_name = Read32();
         FoxIRFunctionRef* ref = GetFunctionRefFromHash(hashed_name);
         if (ref) {
@@ -2888,9 +2972,10 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
         }
     }
     else if (op_spec == IrSpecMarker_FrameEnd) {
+        FoxIRArm64Frame* current_frame = GetCurrentFrame();
         // If there is a return statement on base level (without branching, conditions, etc.) then we can
         // omit the frame restore logic here as it will already be covered by the return statement.
-        if (!GetCurrentFrame()->HasBaselevelReturnStmt) {
+        if (current_frame && !current_frame->HasBaselevelReturnStmt) {
             EmitFrameRestore();
         }
 
@@ -2901,6 +2986,7 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
         // Reset the current stack frame
     }
     else if (op_spec == IrSpecMarker_ParamsBegin) {
+        mInParamsBlock = true;
     }
     else if (op_spec == IrSpecMarker_EntryPoint) {
         mEmitDefinitionAsEntryPoint = true;
@@ -2917,6 +3003,18 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
         }
 
         mCurrentLabelNameLength = name_index;
+    }
+    else if (op_spec == IrSpecMarker_ExtFn) {
+        FoxIRFunctionRef function_ref {
+            .Name = FX_SCRIPT_ALLOC_MEMORY(char, mCurrentLabelNameLength + 1),
+            .Position = mBytecodeIndex,
+        };
+
+        memcpy(function_ref.Name, mCurrentLabelName, mCurrentLabelNameLength);
+        function_ref.Name[mCurrentLabelNameLength] = 0;
+        function_ref.HashedName = FoxHashStr(function_ref.Name);
+
+        mFunctionRefs.Insert(function_ref);
     }
 }
 
@@ -3095,7 +3193,13 @@ FoxArm64Register FoxIRToArm64::GetArmRegFromIRReg(FoxIRRegister ir_reg)
         break;
     }
 
-    return static_cast<FoxArm64Register>(static_cast<uint32>(Fox_Arm64_W8) + static_cast<uint32>(ir_reg));
+    uint32 register_offset = static_cast<uint32>(Fox_Arm64_W8);
+
+    if (mInParamsBlock) {
+        register_offset = static_cast<uint32>(Fox_Arm64_W0);
+    }
+
+    return static_cast<FoxArm64Register>(register_offset + static_cast<uint32>(ir_reg));
 }
 
 FoxIRArm64Frame* FoxIRToArm64::GetCurrentFrame()

@@ -438,6 +438,7 @@ public:
     FoxValue ParseValue();
 
     FoxAstFunctionDecl* ParseFunctionDeclare();
+    FoxAstFunctionDecl* ParseExtfnDeclare();
 
     FoxAstNode* ParseRhs();
     FoxAstFunctionCall* ParseFunctionCall();
@@ -990,6 +991,7 @@ private:
     uint32 PreFrameStackAllocation = 0;
     FoxMPPagedArray<FoxIRArm64Frame> mStackFrames;
 
+    bool mInParamsBlock = false;
     bool mEmitDefinitionAsEntryPoint = false;
     bool mFunctionContainsBranches = false;
 

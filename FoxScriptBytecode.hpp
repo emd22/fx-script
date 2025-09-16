@@ -177,6 +177,8 @@ enum IrSpecMarker : uint8
     IrSpecMarker_FunctionBranches,
 
     IrSpecMarker_FunctionName,
+
+    IrSpecMarker_ExtFn,
 };
 
 enum IrSpecVariable : uint8
