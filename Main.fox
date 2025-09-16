@@ -2,13 +2,13 @@ extfn _putchar(int _ch);
 
 fn TestFn(int x, int y, int z) int
 {
-    _putchar(65);
 
     local int value = x + y + z;
+    _putchar(65);
 
     return value;
 }
 
-local int final_result = TestFn(3, 2);
+local int final_result = TestFn(3, 2, 1);
 
 return final_result;

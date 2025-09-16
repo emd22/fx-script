@@ -1090,7 +1090,7 @@ void FoxIREmitter::Emit(FoxAstNode* node)
     RETURN_IF_NO_NODE(node);
 
     if (node->NodeType == FX_AST_BLOCK) {
-        return EmitBlock(reinterpret_cast<FoxAstBlock*>(node));
+        return EmitBlock(reinterpret_cast<FoxAstBlock*>(node), 0);
     }
     // else if (node->NodeType == FX_AST_ACTIONDECL) {
     //     return EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(node));
@@ -1547,7 +1547,7 @@ FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* 
     }
 
     if (rhs_is_binop) {
-        MarkRegisterFree(lhs_register);
+        // MarkRegisterFree(lhs_register);
 
         FoxAstBinop second_binop;
         second_binop.OpToken = binop->OpToken;
@@ -1850,6 +1850,8 @@ FoxIRRegister FoxIREmitter::EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister des
             // The variable is not already loaded, so we can load it from the stack into our destination.
             EmitVariableGetInt32(var_handle->VarIndexInScope, dest_register);
 
+            var_handle->Register = dest_register;
+
             return dest_register;
         }
     }
@@ -1995,7 +1997,10 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
         .Offset = (mStackOffset),
         .SizeOnStack = size_of_type,
         .ScopeIndex = mScopeIndex,
+        .VarIndexInScope = mVarsInScope,
     };
+
+    mVarsInScope++;
 
     VarHandles.Insert(handle);
 
@@ -2075,13 +2080,25 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
         return;
     }
 
+    // For aarch64 W8-W15 are assummed to be clobbered after a subroutine call
+    MarkVariablesAsClobbered(FX_IR_GW0, FX_IR_GW7);
+
     EmitJumpCallAbsolute(handle->HashedName);
 
     // Free all of the parameter used registers
     mRegsInUse = precall_regs_in_use;
 }
 
-FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_node, uint16 index)
+void FoxIREmitter::MarkVariablesAsClobbered(FoxIRRegister start_reg, FoxIRRegister end_reg)
+{
+    for (FoxBytecodeVarHandle& var_handle : VarHandles) {
+        if (var_handle.Register >= start_reg && var_handle.Register <= end_reg) {
+            var_handle.Register = FX_IR_NONE;
+        }
+    }
+}
+
+FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_node, uint16 index, bool alloc_stack_space)
 {
     if (param_decl_node->NodeType != FX_AST_VARDECL) {
         FoxLogError("Param node type is not vardecl!");
@@ -2090,6 +2107,10 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_n
 
     // Emit variable without emitting pushes or pops
     FoxBytecodeVarHandle* handle = DoVarDeclare(reinterpret_cast<FoxAstVarDecl*>(param_decl_node), DECLARE_NO_EMIT);
+
+    if (alloc_stack_space) {
+        EmitStackAlloc(4);
+    }
 
     if (!handle) {
         FoxLogError("Could not define and fetch param!");
@@ -2104,7 +2125,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_n
 
     MarkRegisterUsed(reg);
 
-    handle->Register = reg;
+    // handle->Register = reg;
 
     // assert(handle->SizeOnStack == 4);
 
@@ -2163,7 +2184,7 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
         int parameter_index = 0;
 
         for (FoxAstNode* param_decl_node : function->Params->Statements) {
-            DefineAndFetchParam(param_decl_node, parameter_index);
+            DefineAndFetchParam(param_decl_node, parameter_index, (function->Block != nullptr));
 
             parameter_index++;
         }
@@ -2180,7 +2201,7 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
 
         // Do not check if there are function definitions to be declared when emitting the block here as they are checked above, before any parameters
         // or stack allocations are output.
-        EmitBlock(function->Block, true);
+        EmitBlock(function->Block, parameter_index, true);
 
         // Check to see if there has been a return statement in the function
 
@@ -2236,9 +2257,11 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
     }
 }
 
-void FoxIREmitter::EmitBlock(FoxAstBlock* block, bool ignore_function_definitions)
+void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore_function_definitions)
 {
     RETURN_IF_NO_NODE(block);
+
+    mVarsInScope = params_to_save;
 
     bool will_emit_entrypoint = false;
 
@@ -2299,6 +2322,16 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, bool ignore_function_definition
 
     // After the stack allocations, mark the start of the frame.
     EmitMarker(IrSpecMarker_FrameBegin);
+
+    EmitMarker(IrSpecMarker_ParamRegBlockBegin);
+
+    for (int i = 0; i < params_to_save; i++) {
+        uint32 base_var_index = (mVarsInScope - params_to_save);
+        EmitVariableSetReg32(base_var_index + i, static_cast<FoxIRRegister>(FX_IR_GW0 + i));
+        MarkRegisterFree(static_cast<FoxIRRegister>(FX_IR_GW0 + i));
+    }
+
+    EmitMarker(IrSpecMarker_ParamRegBlockEnd);
 
     for (FoxAstNode* node : block->Statements) {
         Emit(node);
@@ -2572,6 +2605,12 @@ void FoxIRPrinter::DoMarker(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == IrSpecMarker_ParamsBegin) {
         BC_PRINT_OP("@Params");
+    }
+    else if (op_spec == IrSpecMarker_ParamRegBlockBegin) {
+        BC_PRINT_OP("@ParamRegBlockBegin");
+    }
+    else if (op_spec == IrSpecMarker_ParamRegBlockBegin) {
+        BC_PRINT_OP("@ParamRegBlockEnd");
     }
     else if (op_spec == IrSpecMarker_EntryPoint) {
         BC_PRINT_OP("@Entry");
@@ -2988,6 +3027,14 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
     else if (op_spec == IrSpecMarker_ParamsBegin) {
         mInParamsBlock = true;
     }
+
+    else if (op_spec == IrSpecMarker_ParamRegBlockBegin) {
+        mInParamsBlock = true;
+    }
+    else if (op_spec == IrSpecMarker_ParamRegBlockEnd) {
+        mInParamsBlock = false;
+    }
+
     else if (op_spec == IrSpecMarker_EntryPoint) {
         mEmitDefinitionAsEntryPoint = true;
     }

@@ -172,6 +172,8 @@ enum IrSpecMarker : uint8
     IrSpecMarker_FrameEnd,
 
     IrSpecMarker_ParamsBegin,
+    IrSpecMarker_ParamRegBlockBegin,
+    IrSpecMarker_ParamRegBlockEnd,
 
     IrSpecMarker_EntryPoint,
     IrSpecMarker_FunctionBranches,

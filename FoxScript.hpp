@@ -751,13 +751,13 @@ public:
 
 
 private:
-    void EmitBlock(FoxAstBlock* block, bool ignore_function_definitions = false);
+    void EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore_function_definitions = false);
     void EmitFunction(FoxAstFunctionDecl* function);
     void EmitFunctionDefinitionsInBlock(FoxAstBlock* block);
     void DoFunctionCall(FoxAstFunctionCall* call);
     FoxBytecodeVarHandle* DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode = DECLARE_DEFAULT);
     void EmitAssign(FoxAstAssign* assign);
-    FoxBytecodeVarHandle* DefineAndFetchParam(FoxAstNode* param_decl_node, uint16 index);
+    FoxBytecodeVarHandle* DefineAndFetchParam(FoxAstNode* param_decl_node, uint16 index, bool alloc_stack_space = false);
     FoxBytecodeVarHandle* DefineReturnVar(FoxAstVarDecl* decl);
 
     FoxIRRegister EmitVarFetch(FoxAstVarRef* ref, RhsMode mode);
@@ -835,6 +835,8 @@ private:
     void MarkRegisterFree(FoxIRRegister reg);
 
     bool DoesNodeBranch(FoxAstNode* node);
+
+    void MarkVariablesAsClobbered(FoxIRRegister start_reg, FoxIRRegister end_reg);
 
 public:
     FoxMPPagedArray<FoxBytecodeVarHandle> VarHandles;
