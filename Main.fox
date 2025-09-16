@@ -5,8 +5,7 @@ fn Get2() int
 
 fn Get5() int
 {
-    local int x = Get2();
-    local int value = x + 3;
+    local int value = Get2() + 3;
     return value;
 }
 

@@ -399,6 +399,8 @@ void FoxConfigScript::Execute()
     FoxIRToArm64 ir_to_arm64(ir_emitter.mBytecode);
 
     ir_to_arm64.Print();
+
+    FoxAstDestroyer destroyer(mRootBlock);
 }
 
 FoxValue FoxConfigScript::ParseValue()
@@ -901,6 +903,84 @@ FoxAstBlock* FoxConfigScript::Parse()
     printer.Print(root_block);
 
     return root_block;
+}
+
+void FoxAstDestroyer::Do(FoxAstNode* node)
+{
+    if (node == nullptr) {
+        return;
+    }
+
+    if (node->NodeType == FX_AST_BLOCK) {
+        FoxAstBlock* block = reinterpret_cast<FoxAstBlock*>(node);
+        for (FoxAstNode* child : block->Statements) {
+            Do(child);
+        }
+
+        FX_SCRIPT_FREE(FoxAstBlock, block);
+    }
+    else if (node->NodeType == FX_AST_ACTIONDECL) {
+        FoxAstFunctionDecl* functiondecl = reinterpret_cast<FoxAstFunctionDecl*>(node);
+
+        for (FoxAstNode* param : functiondecl->Params->Statements) {
+            Do(param);
+        }
+
+        Do(functiondecl->Block);
+
+        FX_SCRIPT_FREE(FoxAstFunctionDecl, functiondecl);
+    }
+    else if (node->NodeType == FX_AST_VARDECL) {
+        FoxAstVarDecl* vardecl = reinterpret_cast<FoxAstVarDecl*>(node);
+
+        Do(vardecl->Assignment);
+
+        FX_SCRIPT_FREE(FoxAstVarDecl, vardecl);
+    }
+    else if (node->NodeType == FX_AST_ASSIGN) {
+        FoxAstAssign* assign = reinterpret_cast<FoxAstAssign*>(node);
+
+        Do(assign->Rhs);
+
+        FX_SCRIPT_FREE(FoxAstAssign, assign);
+    }
+    else if (node->NodeType == FX_AST_ACTIONCALL) {
+        FoxAstFunctionCall* functioncall = reinterpret_cast<FoxAstFunctionCall*>(node);
+
+        FX_SCRIPT_FREE(FoxAstFunctionCall, functioncall);
+    }
+    else if (node->NodeType == FX_AST_LITERAL) {
+        FoxAstLiteral* literal = reinterpret_cast<FoxAstLiteral*>(node);
+
+        FX_SCRIPT_FREE(FoxAstLiteral, literal);
+    }
+    else if (node->NodeType == FX_AST_BINOP) {
+        FoxAstBinop* binop = reinterpret_cast<FoxAstBinop*>(node);
+
+        Do(binop->Left);
+        Do(binop->Right);
+
+        FX_SCRIPT_FREE(FoxAstBinop, binop);
+    }
+    else if (node->NodeType == FX_AST_COMMANDMODE) {
+        FoxAstCommandMode* command_mode = reinterpret_cast<FoxAstCommandMode*>(node);
+
+        Do(command_mode->Node);
+
+        FX_SCRIPT_FREE(FoxAstCommandMode, command_mode);
+    }
+    else if (node->NodeType == FX_AST_RETURN) {
+        FoxAstReturn* return_node = reinterpret_cast<FoxAstReturn*>(node);
+
+        if (return_node->Rhs) {
+            Do(return_node->Rhs);
+        }
+
+        FX_SCRIPT_FREE(FoxAstReturn, return_node);
+    }
+    else {
+        FoxLogError("Cannot free unknown node!");
+    }
 }
 
 
@@ -2674,7 +2754,7 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
             FoxAsm("_main:");
         }
         else {
-            FoxAsm("{:.{}}:", mCurrentLabelName, mCurrentLabelNameLength);
+            FoxAsm("{}:", function_ref.Name);
         }
 
         FoxAsmIncreaseIndent();

@@ -47,7 +47,7 @@ void FoxFreeMemory(T* ptr)
         ptr->~T();
     }
 
-    free(ptr);
+    free(reinterpret_cast<void*>(ptr));
 }
 
 //////////////////

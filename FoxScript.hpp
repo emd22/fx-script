@@ -636,6 +636,26 @@ public:
     // FoxAstBlock* mRootBlock = nullptr;
 };
 
+
+//////////////////////////////////
+// Script AST Printer
+//////////////////////////////////
+
+class FoxAstDestroyer
+{
+public:
+    FoxAstDestroyer(FoxAstBlock* root_block)
+    //: mRootBlock(root_block)
+    {
+        Do(root_block);
+    }
+
+    void Do(FoxAstNode* node);
+
+public:
+    // FoxAstBlock* mRootBlock = nullptr;
+};
+
 enum FoxIRRegister : uint8
 {
     /* General Purpose (32 bit) registers */
