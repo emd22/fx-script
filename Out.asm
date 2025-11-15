@@ -1,12 +1,16 @@
 .global _main
 
 // SAlloc 4
+// SAlloc 4
 C_putchar:
 	sub sp, sp, #32
 	stp x29, x30, [sp, #16]
 	add x29, sp, #16
-	str w0, [sp, #12]
-	ldr w0, [sp, #12]
+	str w0, [sp, #8]
+	ldr w8, [sp, #12]
+	mov w9, #2
+	add w8, w8, w9
+	str w8, [sp, #8]
 	bl _putchar
 	ldp x29, x30, [sp, #16]
 	add sp, sp, #32

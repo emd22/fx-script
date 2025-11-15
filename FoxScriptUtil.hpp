@@ -155,3 +155,8 @@ inline constexpr FoxHash FoxHashStr(const char* str, uint32 length)
 
     return hash;
 }
+
+static constexpr uint16 ReverseInt16(uint16 value)
+{
+    return (value >> 8) | (value << 8);
+}

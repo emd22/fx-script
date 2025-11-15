@@ -1,4 +1,5 @@
 #include "FoxLog.hpp"
+#include "FoxParser.hpp"
 #include "FoxScript.hpp"
 
 #include <assert.h>
