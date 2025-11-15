@@ -526,8 +526,29 @@ bool FoxIRToArm64::IsRegisterInUse(FoxArm64Register reg)
 FoxArm64Register FoxIRToArm64::GetArmRegFromIRReg(FoxIRRegister ir_reg)
 {
     switch (ir_reg) {
+    /* Parameter registers */
     case FX_IR_REG_RETURN_VALUE:
+        [[fallthrough]];
+    case FX_IR_PARAMREG0:
         return Fox_Arm64_W0;
+    case FX_IR_PARAMREG1:
+        return Fox_Arm64_W1;
+    case FX_IR_PARAMREG2:
+        return Fox_Arm64_W2;
+    case FX_IR_PARAMREG3:
+        return Fox_Arm64_W3;
+    /* General purpose registers */
+    case FX_IR_GW0:
+        return Fox_Arm64_W8;
+    case FX_IR_GW1:
+        return Fox_Arm64_W9;
+    case FX_IR_GW2:
+        return Fox_Arm64_W10;
+    case FX_IR_GW3:
+        return Fox_Arm64_W11;
+
+    // case FX_IR_REG_RETURN_VALUE:
+    //     return Fox_Arm64_W0;
     default:
         break;
     }

@@ -181,6 +181,14 @@ FoxIRRegister FoxIREmitter::FindFreeReg64()
 const char* FoxIREmitter::GetRegisterName(FoxIRRegister reg)
 {
     switch (reg) {
+    case FX_IR_PARAMREG0:
+        return "PARAMREG0";
+    case FX_IR_PARAMREG1:
+        return "PARAMREG1";
+    case FX_IR_PARAMREG2:
+        return "PARAMREG2";
+    case FX_IR_PARAMREG3:
+        return "PARAMREG3";
     case FX_IR_GW0:
         return "GW0";
     case FX_IR_GW1:
@@ -959,7 +967,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
         .VarIndexInScope = mVarsInScope,
     };
 
-    // mVarsInScope++;
+    mVarsInScope++;
 
     VarHandles.Insert(handle);
 
@@ -1018,7 +1026,7 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
 
     // Fetch all parameters into registers
     for (FoxAstNode* param : call->Params) {
-        EmitRhsToRegister(param, static_cast<FoxIRRegister>(FX_IR_GW0 + parameter_index));
+        EmitRhsToRegister(param, static_cast<FoxIRRegister>(FX_IR_PARAMREG0 + parameter_index));
 
         parameter_index++;
     }
@@ -1076,7 +1084,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_n
         return nullptr;
     }
 
-    FoxIRRegister reg = static_cast<FoxIRRegister>(FX_IR_GW0 + index);
+    FoxIRRegister reg = static_cast<FoxIRRegister>(FX_IR_PARAMREG0 + index);
 
     if ((mRegsInUse & (1u << reg))) {
         FoxLogWarning("Clobbering register {} for function parameter", GetRegisterName(reg));
@@ -1287,8 +1295,9 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
 
         for (int i = 0; i < params_to_save; i++) {
             uint32 base_var_index = (mVarsInScope - params_to_save);
-            EmitVariableSetReg32(base_var_index + i, static_cast<FoxIRRegister>(FX_IR_GW0 + i));
-            MarkRegisterFree(static_cast<FoxIRRegister>(FX_IR_GW0 + i));
+            // uint32 base_var_index = 0;
+            EmitVariableSetReg32(base_var_index + i, static_cast<FoxIRRegister>(FX_IR_PARAMREG0 + i));
+            MarkRegisterFree(static_cast<FoxIRRegister>(FX_IR_PARAMREG0 + i));
         }
 
         EmitMarker(IrSpecMarker_ParamRegBlockEnd);

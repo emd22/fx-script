@@ -291,6 +291,11 @@ public:
 
 enum FoxIRRegister : uint8
 {
+    FX_IR_PARAMREG0,
+    FX_IR_PARAMREG1,
+    FX_IR_PARAMREG2,
+    FX_IR_PARAMREG3,
+
     /* General Purpose (32 bit) registers */
     FX_IR_GW0,
     FX_IR_GW1,
@@ -306,6 +311,7 @@ enum FoxIRRegister : uint8
     FX_IR_GX1,
     FX_IR_GX2,
     FX_IR_GX3,
+
 
     FX_IR_REG_RETURN_VALUE,
 

@@ -1,15 +1,14 @@
 extfn _putchar(int _ch);
 
-fn C_putchar(int ch)
+fn printch(int ch)
 {
     local int value = ch + 2;
-
     _putchar(value);
 
     return;
 }
 
-C_putchar(65);
-C_putchar(66);
+printch(65);
+printch(66);
 
 return 0;
