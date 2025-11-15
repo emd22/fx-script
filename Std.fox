@@ -1,0 +1,9 @@
+extfn _putchar(int _ch) CLOBBERS PARAMREG0, PARAMREG1, GW0, GW1, GW2, GW3;
+
+// Prints a character `ch` to stdout
+fn printc(int ch)
+{
+    //local int val = ch;
+    _putchar(ch);
+    return;
+}

@@ -358,6 +358,19 @@ FoxFunction* FoxConfigScript::FindFunction(FoxHash hashed_name)
     return nullptr;
 }
 
+void FoxConfigScript::PrintFunctionTable(const FoxScope& scope) const
+{
+    FoxLogInfo("||-------------------------------------||");
+    FoxLogInfo("|| Name             | Hash             ||");
+    FoxLogInfo("||-------------------------------------||");
+
+    for (const FoxFunction& function : scope.Functions) {
+        FoxLogInfo("|| {:16} | {:16} ||", function.Name->GetStr(), function.Name->GetHash());
+    }
+
+    FoxLogInfo("||-------------------------------------||");
+}
+
 void FoxConfigScript::Execute()
 {
     mRootBlock = Parse();
@@ -367,6 +380,8 @@ void FoxConfigScript::Execute()
         return;
     }
     printf("\n=====\n");
+
+    PrintFunctionTable(*mCurrentScope);
 
 
     FoxIREmitter ir_emitter;

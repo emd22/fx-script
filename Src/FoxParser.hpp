@@ -78,6 +78,8 @@ public:
     Token& GetToken(int offset = 0);
     Token& EatToken(TT token_type);
 
+    void PrintFunctionTable(const FoxScope& scope) const;
+
     // void RegisterExternalFunc(FoxHash func_name, std::vector<FoxValue::ValueType> param_types, FoxExternalFunc::FuncType func, bool is_variadic);
 
     void DefineExternalVar(const char* type, const char* name, const FoxValue& value);

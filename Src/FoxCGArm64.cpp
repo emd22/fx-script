@@ -537,6 +537,7 @@ FoxArm64Register FoxIRToArm64::GetArmRegFromIRReg(FoxIRRegister ir_reg)
         return Fox_Arm64_W2;
     case FX_IR_PARAMREG3:
         return Fox_Arm64_W3;
+
     /* General purpose registers */
     case FX_IR_GW0:
         return Fox_Arm64_W8;

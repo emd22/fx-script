@@ -967,6 +967,8 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
         .VarIndexInScope = mVarsInScope,
     };
 
+    FoxLogDebug("DEFINING PARAM");
+
     mVarsInScope++;
 
     VarHandles.Insert(handle);
@@ -1082,6 +1084,8 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_n
         FoxLogError("Param node type is not vardecl!");
         return nullptr;
     }
+
+    FoxLogDebug("DEFINING PARAMETER");
 
     // Emit variable without emitting pushes or pops
     FoxBytecodeVarHandle* handle = DoVarDeclare(reinterpret_cast<FoxAstVarDecl*>(param_decl_node), DECLARE_NO_EMIT);
@@ -1232,6 +1236,7 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
         FoxBytecodeVarHandle* var = VarHandles.RemoveLast();
         assert(var->SizeOnStack == 4);
         mStackOffset -= var->SizeOnStack;
+        --mVarsInScope;
     }
 }
 
