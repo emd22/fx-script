@@ -6,6 +6,40 @@ struct FoxAstVarRef;
 struct FoxScope;
 struct FoxFunction;
 
+
+enum FoxIRRegister : uint8
+{
+    FX_IR_PARAMREG0,
+    FX_IR_PARAMREG1,
+    FX_IR_PARAMREG2,
+    FX_IR_PARAMREG3,
+
+    /* General Purpose (32 bit) registers */
+    FX_IR_GW0,
+    FX_IR_GW1,
+    FX_IR_GW2,
+    FX_IR_GW3,
+    FX_IR_GW4,
+    FX_IR_GW5,
+    FX_IR_GW6,
+    FX_IR_GW7,
+
+    /* General Purpose (64 bit) registers */
+    FX_IR_GX0,
+    FX_IR_GX1,
+    FX_IR_GX2,
+    FX_IR_GX3,
+
+
+    FX_IR_REG_RETURN_VALUE,
+
+    /* Stack pointer */
+    FX_IR_SP,
+
+    FX_IR_NONE
+};
+
+
 struct FoxValue
 {
     static FoxValue None;
@@ -215,6 +249,7 @@ struct FoxAstFunctionDecl : public FoxAstNode
     FoxAstBlock* Params = nullptr;
     FoxAstBlock* Block = nullptr;
 
+    std::vector<FoxIRRegister> ClobberList;
     std::vector<FoxAstDocComment*> DocComments;
 };
 
@@ -287,38 +322,6 @@ public:
 
 public:
     // FoxAstBlock* mRootBlock = nullptr;
-};
-
-enum FoxIRRegister : uint8
-{
-    FX_IR_PARAMREG0,
-    FX_IR_PARAMREG1,
-    FX_IR_PARAMREG2,
-    FX_IR_PARAMREG3,
-
-    /* General Purpose (32 bit) registers */
-    FX_IR_GW0,
-    FX_IR_GW1,
-    FX_IR_GW2,
-    FX_IR_GW3,
-    FX_IR_GW4,
-    FX_IR_GW5,
-    FX_IR_GW6,
-    FX_IR_GW7,
-
-    /* General Purpose (64 bit) registers */
-    FX_IR_GX0,
-    FX_IR_GX1,
-    FX_IR_GX2,
-    FX_IR_GX3,
-
-
-    FX_IR_REG_RETURN_VALUE,
-
-    /* Stack pointer */
-    FX_IR_SP,
-
-    FX_IR_NONE
 };
 
 struct FoxBytecodeVarHandle

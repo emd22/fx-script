@@ -802,6 +802,44 @@ FoxAstFunctionDecl* FoxConfigScript::ParseFunctionDeclare()
     return node;
 }
 
+FoxIRRegister IrRegisterFromToken(const Token& token)
+{
+    if (token.Type != FoxTokenizer::TokenType::Identifier) {
+        return FX_IR_NONE;
+    }
+
+    std::string reg = token.GetStr();
+
+    if (reg.starts_with("PARAMREG")) {
+        char num = reg[reg.length()];
+        switch (num) {
+        case '0':
+            return FX_IR_PARAMREG0;
+        case '1':
+            return FX_IR_PARAMREG1;
+        case '2':
+            return FX_IR_PARAMREG2;
+        case '3':
+            return FX_IR_PARAMREG3;
+        }
+    }
+
+    if (reg.starts_with("GW")) {
+        char num = reg[reg.length()];
+        if ((num - '0') <= 7) {
+            return static_cast<FoxIRRegister>(FX_IR_GW0 + (num - '0'));
+        }
+    }
+
+    if (reg.starts_with("GX")) {
+        char num = reg[reg.length()];
+        if ((num - '0') <= 3) {
+            return static_cast<FoxIRRegister>(FX_IR_GX0 + (num - '0'));
+        }
+    }
+
+    return FX_IR_NONE;
+}
 
 FoxAstFunctionDecl* FoxConfigScript::ParseExtfnDeclare()
 {
@@ -842,8 +880,13 @@ FoxAstFunctionDecl* FoxConfigScript::ParseExtfnDeclare()
         node->ReturnVar = return_decl;
     }*/
 
+
+    // Parse clobber list
+
+    constexpr FoxHash clobber_hash = FoxHashStr("CLOBBERS");
+
     // Check to see if there is a return type provided
-    if (GetToken().Type != TT::Semicolon) {
+    if (GetToken().Type != TT::Semicolon && GetToken().GetHash() != clobber_hash) {
         // There is a return type, declare the __ReturnVal__ variable
 
         // Get the token for the type
@@ -851,6 +894,24 @@ FoxAstFunctionDecl* FoxConfigScript::ParseExtfnDeclare()
 
         FoxAstVarDecl* return_decl = InternalVarDeclare(mTokenReturnVar, &type_token);
         node->ReturnVar = return_decl;
+    }
+
+    // Check if there is a clobber list provided
+    if (GetToken().Type == TT::Identifier && GetToken().GetHash() == clobber_hash) {
+        EatToken(TT::Identifier);
+
+
+        while (1) {
+            FoxIRRegister reg = IrRegisterFromToken(EatToken(TT::Identifier));
+            node->ClobberList.push_back(reg);
+
+            if (GetToken().Type == TT::Comma) {
+                EatToken(TT::Comma);
+                continue;
+            }
+
+            break;
+        }
     }
 
     PopScope();

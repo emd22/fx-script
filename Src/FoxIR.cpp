@@ -1023,7 +1023,6 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
 
     int parameter_index = 0;
 
-
     // Fetch all parameters into registers
     for (FoxAstNode* param : call->Params) {
         EmitRhsToRegister(param, static_cast<FoxIRRegister>(FX_IR_PARAMREG0 + parameter_index));
@@ -1048,7 +1047,19 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
     // }
 
     // For aarch64 W8-W15 are assummed to be clobbered after a subroutine call
-    MarkVariablesAsClobbered(FX_IR_GW0, FX_IR_GW7);
+
+    auto& clobber_list = call->Function->Declaration->ClobberList;
+
+    if (clobber_list.empty()) {
+        MarkVariablesAsClobbered(FX_IR_GW0, FX_IR_GW7);
+        MarkVariablesAsClobbered(FX_IR_PARAMREG0, FX_IR_PARAMREG3);
+    }
+    else {
+        for (FoxIRRegister clobbered_reg : clobber_list) {
+            MarkVariablesAsClobbered(clobbered_reg, clobbered_reg);
+        }
+    }
+
 
     EmitJumpCallAbsolute(handle->HashedName);
 
