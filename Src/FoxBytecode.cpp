@@ -44,6 +44,47 @@ void FoxBytecodeEmitter::BeginEmitting(FoxAstNode* node)
         return (value_);                                                                                                                             \
     }
 
+void FoxBytecodeEmitter::EmitReturn(FoxAstReturn* return_node)
+{
+    // No return value provided, emit the non-value return. Returning from a typed function should be enforced at the parsing stage!
+    if (!return_node->pRhs) {
+        EmitJumpReturnToCaller();
+    }
+
+    // Is there a return value provided?
+    if (return_node->pRhs) {
+        FoxAstNode* return_rhs = return_node->pRhs;
+
+        // Check to see if its a literal
+        if (return_rhs->NodeType == FX_AST_LITERAL) {
+            FoxAstLiteral* literal = reinterpret_cast<FoxAstLiteral*>(return_rhs);
+
+            EmitPushVarOrLiteral(literal);
+            EmitJumpReturnToCallerValue();
+        }
+        else if (return_rhs->NodeType == FX_AST_PROCCALL) {
+            FoxAstFunctionCall* call_node = reinterpret_cast<FoxAstFunctionCall*>(return_rhs);
+
+            if (call_node->GetReturnType() == nullptr) {
+                FoxLogError("EmitReturn: Function called in return statement does not return a value.");
+                EmitJumpReturnToCaller();
+                return;
+            }
+
+            DoFunctionCall(call_node);
+
+            // Function call returns a value and is pushed onto the stack.
+            // Continue this value to the next caller.
+            EmitJumpReturnToCallerValue();
+        }
+        else {
+            FoxLogError("EmitReturn: Return value type is not implemented!");
+            EmitJumpReturnToCaller();
+        }
+    }
+}
+
+
 void FoxBytecodeEmitter::Emit(FoxAstNode* node)
 {
     RETURN_IF_NO_NODE(node);
@@ -65,38 +106,7 @@ void FoxBytecodeEmitter::Emit(FoxAstNode* node)
         return;
     }
     else if (node->NodeType == FX_AST_RETURN) {
-        FoxAstReturn* return_node = reinterpret_cast<FoxAstReturn*>(node);
-
-        // Is there a return value provided?
-        if (return_node->Rhs) {
-            FoxAstNode* return_rhs = return_node->Rhs;
-
-            // Check to see if its a literal
-            if (return_rhs->NodeType == FX_AST_LITERAL) {
-                FoxAstLiteral* literal = reinterpret_cast<FoxAstLiteral*>(return_rhs);
-
-                EmitPushVarOrLiteral(literal);
-                EmitJumpReturnToCallerValue();
-            }
-
-            return;
-        }
-
-        // constexpr FoxHash return_val_hash = FoxHashStr(FX_SCRIPT_VAR_RETURN_VAL);
-
-        // FoxBytecodeVarHandle* return_var = FindVarHandle(return_val_hash);
-
-        // FoxIRRegister result_register = FindFreeReg32();
-        // MARK_REGISTER_USED(result_register);
-
-        // if (return_var) {
-        //     DoLoad(return_var->Offset, result_register);
-        // }
-
-        // MARK_REGISTER_FREE(result_register);
-
-        EmitJumpReturnToCaller();
-
+        EmitReturn(reinterpret_cast<FoxAstReturn*>(node));
         return;
     }
 }
@@ -893,7 +903,7 @@ FoxBytecodeVarHandle* FoxBytecodeEmitter::DoVarDeclare(FoxAstVarDecl* decl, VarD
     const FoxHash type_string = FoxHashStr("string");
 
     FoxHash decl_hash = decl->Name->GetHash();
-    FoxHash type_hash = decl->Type->GetHash();
+    FoxHash type_hash = decl->pType->GetHash();
 
     FoxValue::eValueType value_type = FoxValue::INT;
 
@@ -906,7 +916,7 @@ FoxBytecodeVarHandle* FoxBytecodeEmitter::DoVarDeclare(FoxAstVarDecl* decl, VarD
         break;
     };
 
-    const uint16 size_of_type = GetSizeOfType(decl->Type);
+    const uint16 size_of_type = GetSizeOfType(decl->pType);
 
     FoxBytecodeVarHandle handle {
         .HashedName = decl_hash,
@@ -943,16 +953,6 @@ FoxBytecodeVarHandle* FoxBytecodeEmitter::DoVarDeclare(FoxAstVarDecl* decl, VarD
         FoxAstNode* rhs = decl->Assignment->Rhs;
 
         EmitRhs(rhs, RhsMode::RHS_ASSIGN_TO_HANDLE, var_handle);
-
-
-        // EmitPush32(0);
-
-        // EmitRhs(rhs, RhsMode::RHS_ASSIGN_TO_HANDLE, inserted_handle);
-    }
-    else {
-        // There is no assignment, push zero as the value for now and
-        // a later assignment can set it using save32.
-        EmitPush32(0);
     }
 
     return var_handle;
@@ -969,50 +969,14 @@ void FoxBytecodeEmitter::DoFunctionCall(FoxAstFunctionCall* call)
 
     EmitParamsStart();
 
-    int call_location_index = 0;
-
     uint32 precall_regs_in_use = mRegsInUse;
-
-    int parameter_index = 0;
+    int32 parameter_index = 0;
 
     // Fetch all parameters into registers
     for (FoxAstNode* param : call->Params) {
         EmitPushVarOrLiteral(param);
-        // EmitRhsToRegister(param, static_cast<FoxIRRegister>(FX_IR_PARAMREG0 + parameter_index));
-
         parameter_index++;
     }
-
-    // The handle could not be found, write it as a possible external symbol.
-    // if (!handle) {
-    //     printf("Call name-> %u\n", call->HashedName);
-
-    //     // Since popping the parameters are handled internally in the VM,
-    //     // we need to decrement the stack offset here.
-    //     for (int i = 0; i < call->Params.size(); i++) {
-    //         mStackOffset -= 4;
-    //     }
-
-    //     EmitJumpCallExternal(call->HashedName);
-
-    //     // EmitPop32(FX_REG_RA);
-    //     return;
-    // }
-
-    // For aarch64 W8-W15 are assummed to be clobbered after a subroutine call
-
-    auto& clobber_list = call->Function->Declaration->ClobberList;
-
-    if (clobber_list.empty()) {
-        MarkVariablesAsClobbered(FX_IR_GW0, FX_IR_GW7);
-        MarkVariablesAsClobbered(FX_IR_PARAMREG0, FX_IR_PARAMREG3);
-    }
-    else {
-        for (FoxIRRegister clobbered_reg : clobber_list) {
-            MarkVariablesAsClobbered(clobbered_reg, clobbered_reg);
-        }
-    }
-
 
     EmitJumpCallAbsolute(handle->HashedName);
 

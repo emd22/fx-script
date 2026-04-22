@@ -103,6 +103,8 @@ private:
 
     void EmitJumpCallExternal(FoxHash hashed_name);
 
+    void EmitReturn(FoxAstReturn* return_node);
+
     void EmitVariableGetInt32(uint16 var_index, FoxIRRegister dest_reg);
     void EmitVariableSetInt32(uint16 var_index, int32 value);
     void EmitVariableSetReg32(uint16 var_index, FoxIRRegister reg);
@@ -164,7 +166,6 @@ private:
     uint32 mStackSize = 0;
 
     uint16 mVarsInScope = 0;
-    uint32 mLabelId = 0;
 
     uint16 mScopeIndex = 0;
 

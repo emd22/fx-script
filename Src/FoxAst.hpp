@@ -220,7 +220,7 @@ struct FoxAstVarDecl : public FoxAstNode
     }
 
     FoxTokenizer::Token* Name = nullptr;
-    FoxTokenizer::Token* Type = nullptr;
+    FoxTokenizer::Token* pType = nullptr;
     FoxAstAssign* Assignment = nullptr;
 
     /// Ignore the scope that the variable is declared in, force it to be global.
@@ -245,7 +245,7 @@ struct FoxAstFunctionDecl : public FoxAstNode
     }
 
     FoxTokenizer::Token* Name = nullptr;
-    FoxAstVarDecl* ReturnVar = nullptr;
+    FoxAstVarDecl* pReturnVar = nullptr;
     FoxAstBlock* Params = nullptr;
     FoxAstBlock* Block = nullptr;
 
@@ -270,7 +270,9 @@ struct FoxAstFunctionCall : public FoxAstNode
         this->NodeType = FX_AST_PROCCALL;
     }
 
-    FoxFunction* Function = nullptr;
+    FoxTokenizer::Token* GetReturnType() const;
+
+    FoxFunction* pFunction = nullptr;
     FoxHash HashedName = 0;
     std::vector<FoxAstNode*> Params {}; // FoxAstLiteral or FoxAstVarRef
 };
@@ -282,7 +284,7 @@ struct FoxAstReturn : public FoxAstNode
         this->NodeType = FX_AST_RETURN;
     }
 
-    FoxAstNode* Rhs = nullptr;
+    FoxAstNode* pRhs = nullptr;
 };
 
 

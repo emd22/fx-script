@@ -21,12 +21,12 @@ struct FoxFunction : public FoxLabelledData
         HashedName = name->GetHash();
         Name = name;
         Scope = scope;
-        Block = block;
-        Declaration = declaration;
+        pBlock = block;
+        pDeclaration = declaration;
     }
 
-    FoxAstFunctionDecl* Declaration = nullptr;
-    FoxAstBlock* Block = nullptr;
+    FoxAstFunctionDecl* pDeclaration = nullptr;
+    FoxAstBlock* pBlock = nullptr;
 };
 
 

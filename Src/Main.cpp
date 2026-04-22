@@ -12,8 +12,6 @@ int main()
     FoxConfigScript script;
     script.LoadFile("Main.fox");
 
-    FoxAsmCreateFile("Out.asm");
-
     script.DefineExternalVar("playerid", "emd22", FoxValue(FoxValue::INT, 1020));
 
     // FoxVM vm;

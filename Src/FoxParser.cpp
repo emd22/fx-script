@@ -209,7 +209,7 @@ FoxAstNode* FoxConfigScript::TryParseKeyword(FoxAstBlock* parent_block)
         }
 
         FoxAstReturn* ret = FX_SCRIPT_ALLOC_NODE(FoxAstReturn);
-        ret->Rhs = return_rhs;
+        ret->pRhs = return_rhs;
 
         return ret;
     }
@@ -221,7 +221,7 @@ FoxAstNode* FoxConfigScript::TryParseKeyword(FoxAstBlock* parent_block)
         FoxFunction* function = FindFunction(func_ref.GetHash());
 
         if (function) {
-            for (FoxAstDocComment* comment : function->Declaration->DocComments) {
+            for (FoxAstDocComment* comment : function->pDeclaration->DocComments) {
                 printf("[DOC] %.*s: ", function->Name->Length, function->Name->Start);
                 PrintDocComment(comment->Comment, mInCommandMode);
             }
@@ -265,7 +265,7 @@ FoxAstVarDecl* FoxConfigScript::InternalVarDeclare(FoxTokenizer::Token* name_tok
     FoxAstVarDecl* node = FX_SCRIPT_ALLOC_NODE(FoxAstVarDecl);
 
     node->Name = name_token;
-    node->Type = type_token;
+    node->pType = type_token;
     node->DefineAsGlobal = (scope == &mScopes[0]);
 
     // Push the variable to the scope
@@ -287,7 +287,7 @@ FoxAstVarDecl* FoxConfigScript::ParseVarDeclare(FoxScope* scope)
     FoxAstVarDecl* node = FX_SCRIPT_ALLOC_NODE(FoxAstVarDecl);
 
     node->Name = &name;
-    node->Type = &type;
+    node->pType = &type;
     node->DefineAsGlobal = (scope == &mScopes[0]);
 
     FoxVar var {&type, &name, scope};
@@ -802,7 +802,7 @@ FoxAstFunctionDecl* FoxConfigScript::ParseProcedureDeclare()
         Token& type_token = EatToken(TT::Identifier);
 
         FoxAstVarDecl* return_decl = InternalVarDeclare(mTokenReturnVar, &type_token);
-        node->ReturnVar = return_decl;
+        node->pReturnVar = return_decl;
     }
 
 
@@ -908,7 +908,7 @@ FoxAstFunctionDecl* FoxConfigScript::ParseExtfnDeclare()
         Token& type_token = EatToken(TT::Identifier);
 
         FoxAstVarDecl* return_decl = InternalVarDeclare(mTokenReturnVar, &type_token);
-        node->ReturnVar = return_decl;
+        node->pReturnVar = return_decl;
     }
 
     // Check if there is a clobber list provided
@@ -960,7 +960,7 @@ FoxAstFunctionCall* FoxConfigScript::ParseFunctionCall()
     Token& name = EatToken(TT::Identifier);
 
     node->HashedName = name.GetHash();
-    node->Function = FindFunction(node->HashedName);
+    node->pFunction = FindFunction(node->HashedName);
 
     TT end_token_type = TT::Semicolon;
 
@@ -1093,8 +1093,8 @@ void FoxAstDestroyer::Do(FoxAstNode* node)
     else if (node->NodeType == FX_AST_RETURN) {
         FoxAstReturn* return_node = reinterpret_cast<FoxAstReturn*>(node);
 
-        if (return_node->Rhs) {
-            Do(return_node->Rhs);
+        if (return_node->pRhs) {
+            Do(return_node->pRhs);
         }
 
         FX_SCRIPT_FREE(FoxAstReturn, return_node);

@@ -68,8 +68,8 @@ void FoxIREmitter::Emit(FoxAstNode* node)
         FoxAstReturn* return_node = reinterpret_cast<FoxAstReturn*>(node);
 
         // Is there a return value provided?
-        if (return_node->Rhs) {
-            FoxAstNode* return_rhs = return_node->Rhs;
+        if (return_node->pRhs) {
+            FoxAstNode* return_rhs = return_node->pRhs;
 
             // Check to see if its a literal
             if (return_rhs->NodeType == FX_AST_LITERAL) {
@@ -943,7 +943,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
     const FoxHash type_string = FoxHashStr("string");
 
     FoxHash decl_hash = decl->Name->GetHash();
-    FoxHash type_hash = decl->Type->GetHash();
+    FoxHash type_hash = decl->pType->GetHash();
 
     FoxValue::eValueType value_type = FoxValue::INT;
 
@@ -956,7 +956,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
         break;
     };
 
-    const uint16 size_of_type = GetSizeOfType(decl->Type);
+    const uint16 size_of_type = GetSizeOfType(decl->pType);
 
     FoxBytecodeVarHandle handle {
         .HashedName = decl_hash,
@@ -1050,7 +1050,7 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
 
     // For aarch64 W8-W15 are assummed to be clobbered after a subroutine call
 
-    auto& clobber_list = call->Function->Declaration->ClobberList;
+    auto& clobber_list = call->pFunction->pDeclaration->ClobberList;
 
     if (clobber_list.empty()) {
         MarkVariablesAsClobbered(FX_IR_GW0, FX_IR_GW7);
@@ -1279,7 +1279,7 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
 
             uint32 stack_index = mStackOffset;
 
-            EmitStackAlloc(GetSizeOfType(var_decl->Type));
+            EmitStackAlloc(GetSizeOfType(var_decl->pType));
 
             FoxBytecodeVarHandle var_handle {
                 .HashedName = var_decl->Name->GetHash(),

@@ -2,6 +2,15 @@
 
 #include "FoxVar.hpp"
 
+FoxTokenizer::Token* FoxAstFunctionCall::GetReturnType() const
+{
+    if (!pFunction || !pFunction->pDeclaration->pReturnVar) {
+        return nullptr;
+    }
+
+    return pFunction->pDeclaration->pReturnVar->pType;
+}
+
 void FoxAstPrinter::Print(FoxAstNode* node, int depth)
 {
     if (node == nullptr) {
@@ -53,11 +62,11 @@ void FoxAstPrinter::Print(FoxAstNode* node, int depth)
         FoxAstFunctionCall* functioncall = reinterpret_cast<FoxAstFunctionCall*>(node);
 
         printf("[PROCCALL] ");
-        if (functioncall->Function == nullptr) {
+        if (functioncall->pFunction == nullptr) {
             printf("{defined externally}");
         }
         else {
-            functioncall->Function->Name->Print(true);
+            functioncall->pFunction->Name->Print(true);
         }
 
         printf(" (%zu params)\n", functioncall->Params.size());
@@ -88,8 +97,8 @@ void FoxAstPrinter::Print(FoxAstNode* node, int depth)
 
         puts("[RETURN]");
 
-        if (return_node->Rhs) {
-            Print(return_node->Rhs, depth + 1);
+        if (return_node->pRhs) {
+            Print(return_node->pRhs, depth + 1);
         }
     }
     else {
