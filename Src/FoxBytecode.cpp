@@ -1,4 +1,4 @@
-#include "FoxIR.hpp"
+#include "FoxBytecode.hpp"
 
 #include "FoxLog.hpp"
 
@@ -19,7 +19,7 @@
 
 using TT = FoxTokenizer::TokenType;
 
-void FoxIREmitter::BeginEmitting(FoxAstNode* node)
+void FoxBytecodeEmitter::BeginEmitting(FoxAstNode* node)
 {
     mStackSize = 1024;
 
@@ -44,7 +44,7 @@ void FoxIREmitter::BeginEmitting(FoxAstNode* node)
         return (value_);                                                                                                                             \
     }
 
-void FoxIREmitter::Emit(FoxAstNode* node)
+void FoxBytecodeEmitter::Emit(FoxAstNode* node)
 {
     RETURN_IF_NO_NODE(node);
 
@@ -131,7 +131,7 @@ void FoxIREmitter::Emit(FoxAstNode* node)
     }
 }
 
-FoxBytecodeVarHandle* FoxIREmitter::FindVarHandle(FoxHash hashed_name)
+FoxBytecodeVarHandle* FoxBytecodeEmitter::FindVarHandle(FoxHash hashed_name)
 {
     for (FoxBytecodeVarHandle& handle : VarHandles) {
         if (handle.HashedName == hashed_name) {
@@ -141,7 +141,7 @@ FoxBytecodeVarHandle* FoxIREmitter::FindVarHandle(FoxHash hashed_name)
     return nullptr;
 }
 
-FoxBytecodeFunctionHandle* FoxIREmitter::FindFunctionHandle(FoxHash hashed_name)
+FoxBytecodeFunctionHandle* FoxBytecodeEmitter::FindFunctionHandle(FoxHash hashed_name)
 {
     for (FoxBytecodeFunctionHandle& handle : FunctionHandles) {
         if (handle.HashedName == hashed_name) {
@@ -152,7 +152,7 @@ FoxBytecodeFunctionHandle* FoxIREmitter::FindFunctionHandle(FoxHash hashed_name)
 }
 
 
-FoxIRRegister FoxIREmitter::FindFreeReg32()
+FoxIRRegister FoxBytecodeEmitter::FindFreeReg32()
 {
     for (int register_index = FX_IR_GW0; register_index <= FX_IR_GW7; register_index++) {
         uint32 gp_r = (1 << register_index);
@@ -165,7 +165,7 @@ FoxIRRegister FoxIREmitter::FindFreeReg32()
     return FX_IR_GW6;
 }
 
-FoxIRRegister FoxIREmitter::FindFreeReg64()
+FoxIRRegister FoxBytecodeEmitter::FindFreeReg64()
 {
     for (int register_index = FX_IR_GX0; register_index <= FX_IR_GX3; register_index++) {
         uint32 gp_r = (1 << register_index);
@@ -178,7 +178,7 @@ FoxIRRegister FoxIREmitter::FindFreeReg64()
     return FX_IR_GX3;
 }
 
-const char* FoxIREmitter::GetRegisterName(FoxIRRegister reg)
+const char* FoxBytecodeEmitter::GetRegisterName(FoxIRRegister reg)
 {
     switch (reg) {
     case FX_IR_PARAMREG0:
@@ -223,25 +223,25 @@ const char* FoxIREmitter::GetRegisterName(FoxIRRegister reg)
     return "NONE";
 }
 
-void FoxIREmitter::Write16(uint16 value)
+void FoxBytecodeEmitter::Write16(uint16 value)
 {
     mBytecode.Insert(static_cast<uint8>(value >> 8));
     mBytecode.Insert(static_cast<uint8>(value));
 }
 
-void FoxIREmitter::Write32(uint32 value)
+void FoxBytecodeEmitter::Write32(uint32 value)
 {
     Write16(static_cast<uint16>(value >> 16));
     Write16(static_cast<uint16>(value));
 }
 
-void FoxIREmitter::WriteOp(uint8 op_base, uint8 op_spec)
+void FoxBytecodeEmitter::WriteOp(uint8 op_base, uint8 op_spec)
 {
     mBytecode.Insert(op_base);
     mBytecode.Insert(op_spec);
 }
 
-using IRRhsMode = FoxIREmitter::RhsMode;
+using IRRhsMode = FoxBytecodeEmitter::RhsMode;
 
 #define MARK_REGISTER_USED(regn_)                                                                                                                    \
     {                                                                                                                                                \
@@ -252,212 +252,219 @@ using IRRhsMode = FoxIREmitter::RhsMode;
         MarkRegisterFree(regn_);                                                                                                                     \
     }
 
-void FoxIREmitter::MarkRegisterUsed(FoxIRRegister reg)
+void FoxBytecodeEmitter::MarkRegisterUsed(FoxIRRegister reg)
 {
     uint16 register_flag = (1 << reg);
     mRegsInUse = static_cast<uint32>(uint16(mRegsInUse) | register_flag);
 }
 
-void FoxIREmitter::MarkRegisterFree(FoxIRRegister reg)
+void FoxBytecodeEmitter::MarkRegisterFree(FoxIRRegister reg)
 {
     uint16 register_flag = (1 << reg);
     mRegsInUse = static_cast<uint32>(uint16(mRegsInUse) & (~register_flag));
 }
 
-void FoxIREmitter::EmitSave32(int16 offset, uint32 value)
+void FoxBytecodeEmitter::EmitSave32(int16 offset, uint32 value)
 {
     // SAVE32 [i16 offset] [i32]
-    WriteOp(IrBase_Save, IrSpecSave_Int32);
+    WriteOp(IrBase_Save, BcSpecSave_Int32);
 
     Write16(offset);
     Write32(value);
 }
 
-void FoxIREmitter::EmitSaveReg32(int16 offset, FoxIRRegister reg)
+void FoxBytecodeEmitter::EmitSaveReg32(int16 offset, FoxIRRegister reg)
 {
     // SAVE32r [i16 offset] [%r32]
-    WriteOp(IrBase_Save, IrSpecSave_Reg32);
+    WriteOp(IrBase_Save, BcSpecSave_Reg32);
 
     Write16(offset);
     Write16(reg);
 }
 
 
-void FoxIREmitter::EmitSaveAbsolute32(uint32 position, uint32 value)
+void FoxBytecodeEmitter::EmitSaveAbsolute32(uint32 position, uint32 value)
 {
     // SAVE32a [i32 offset] [i32]
-    WriteOp(IrBase_Save, IrSpecSave_AbsoluteInt32);
+    WriteOp(IrBase_Save, BcSpecSave_AbsoluteInt32);
 
     Write32(position);
     Write32(value);
 }
 
-void FoxIREmitter::EmitSaveAbsoluteReg32(uint32 position, FoxIRRegister reg)
+void FoxBytecodeEmitter::EmitSaveAbsoluteReg32(uint32 position, FoxIRRegister reg)
 {
     // SAVE32r [i32 offset] [%r32]
-    WriteOp(IrBase_Save, IrSpecSave_AbsoluteReg32);
+    WriteOp(IrBase_Save, BcSpecSave_AbsoluteReg32);
 
     Write32(position);
     Write16(reg);
 }
 
-void FoxIREmitter::EmitPush32(uint32 value)
+void FoxBytecodeEmitter::EmitPush32(uint32 value)
 {
     // PUSH32 [i32]
-    WriteOp(IrBase_Push, IrSpecPush_Int32);
+    WriteOp(IrBase_Push, BcSpecPush_Int32);
     Write32(value);
 
     mStackOffset += 4;
 }
 
-void FoxIREmitter::EmitPush32r(FoxIRRegister reg)
+void FoxBytecodeEmitter::EmitPush32r(FoxIRRegister reg)
 {
     // PUSH32r [%r32]
-    WriteOp(IrBase_Push, IrSpecPush_Reg32);
+    WriteOp(IrBase_Push, BcSpecPush_Reg32);
     Write16(reg);
 
     mStackOffset += 4;
 }
 
-void FoxIREmitter::EmitStackAlloc(uint16 size)
+void FoxBytecodeEmitter::EmitStackAlloc(uint16 size)
 {
     // SALLOC [u16]
 
-    WriteOp(IrBase_Push, IrSpecPush_StackAlloc);
+    WriteOp(IrBase_Push, BcSpecPush_StackAlloc);
     Write16(size);
 
     mStackOffset += size;
 }
 
 
-void FoxIREmitter::EmitPop32(FoxIRRegister output_reg)
+void FoxBytecodeEmitter::EmitPop32(FoxIRRegister output_reg)
 {
     // POP32 [%r32]
-    WriteOp(IrBase_Pop, (IrSpecPop_Int32 << 4) | (output_reg & 0x0F));
+    WriteOp(IrBase_Pop, (BcSpecPop_Int32 << 4) | (output_reg & 0x0F));
 
     mStackOffset -= 4;
 }
 
-void FoxIREmitter::EmitLoad32(int offset, FoxIRRegister output_reg)
+void FoxBytecodeEmitter::EmitLoad32(int offset, FoxIRRegister output_reg)
 {
     // LOAD [i16] [%r32]
-    WriteOp(IrBase_Load, (IrSpecLoad_Int32 << 4) | (output_reg & 0x0F));
+    WriteOp(IrBase_Load, (BcSpecLoad_Int32 << 4) | (output_reg & 0x0F));
     Write16(static_cast<uint16>(offset));
 }
 
-void FoxIREmitter::EmitLoadAbsolute32(uint32 position, FoxIRRegister output_reg)
+void FoxBytecodeEmitter::EmitLoadAbsolute32(uint32 position, FoxIRRegister output_reg)
 {
     // LOADA [i32] [%r32]
-    WriteOp(IrBase_Load, (IrSpecLoad_AbsoluteInt32 << 4) | (output_reg & 0x0F));
+    WriteOp(IrBase_Load, (BcSpecLoad_AbsoluteInt32 << 4) | (output_reg & 0x0F));
     Write32(position);
 }
 
-void FoxIREmitter::EmitJumpRelative(uint16 offset)
+void FoxBytecodeEmitter::EmitJumpRelative(uint16 offset)
 {
-    WriteOp(IrBase_Jump, IrSpecJump_Relative);
+    WriteOp(IrBase_Jump, BcSpecJump_Relative);
     Write16(offset);
 }
 
-void FoxIREmitter::EmitJumpAbsolute(uint32 position)
+void FoxBytecodeEmitter::EmitJumpAbsolute(uint32 position)
 {
-    WriteOp(IrBase_Jump, IrSpecJump_Absolute);
+    WriteOp(IrBase_Jump, BcSpecJump_Absolute);
     Write32(position);
 }
 
 
-void FoxIREmitter::EmitJumpAbsoluteReg32(FoxIRRegister reg)
+void FoxBytecodeEmitter::EmitJumpAbsoluteReg32(FoxIRRegister reg)
 {
-    WriteOp(IrBase_Jump, IrSpecJump_AbsoluteReg32);
+    WriteOp(IrBase_Jump, BcSpecJump_AbsoluteReg32);
     Write16(reg);
 }
 
-void FoxIREmitter::EmitJumpCallAbsolute(uint32 position)
+void FoxBytecodeEmitter::EmitJumpCallAbsolute(uint32 position)
 {
-    WriteOp(IrBase_Jump, IrSpecJump_CallAbsolute);
+    WriteOp(IrBase_Jump, BcSpecJump_CallAbsolute);
     Write32(position);
 }
 
 
-void FoxIREmitter::EmitJumpCallExternal(FoxHash hashed_name)
+void FoxBytecodeEmitter::EmitJumpCallExternal(FoxHash hashed_name)
 {
-    WriteOp(IrBase_Jump, IrSpecJump_CallExternal);
+    WriteOp(IrBase_Jump, BcSpecJump_CallExternal);
     Write32(hashed_name);
 }
 
-void FoxIREmitter::EmitJumpReturnToCaller()
+void FoxBytecodeEmitter::EmitJumpReturnToCaller()
 {
-    WriteOp(IrBase_Jump, IrSpecJump_ReturnToCaller);
+    WriteOp(IrBase_Jump, BcSpecJump_ReturnToCaller);
 }
 
-void FoxIREmitter::EmitJumpReturnToCallerReg32(FoxIRRegister reg)
+void FoxBytecodeEmitter::EmitJumpReturnToCallerReg32(FoxIRRegister reg)
 {
-    WriteOp(IrBase_Jump, IrSpecJump_ReturnToCaller_Reg32);
+    WriteOp(IrBase_Jump, BcSpecJump_ReturnToCaller_Reg32);
     Write16(reg);
 }
 
-void FoxIREmitter::EmitJumpReturnToCallerInt32(int32 value)
+void FoxBytecodeEmitter::EmitJumpReturnToCallerInt32(int32 value)
 {
-    WriteOp(IrBase_Jump, IrSpecJump_ReturnToCaller_Int32);
+    WriteOp(IrBase_Jump, BcSpecJump_ReturnToCaller_Int32);
     Write32(value);
 }
 
-void FoxIREmitter::EmitMoveInt32(FoxIRRegister reg, uint32 value)
+void FoxBytecodeEmitter::EmitMoveInt32(FoxIRRegister reg, uint32 value)
 {
-    WriteOp(IrBase_Move, (IrSpecMove_Int32 << 4) | (reg & 0x0F));
+    WriteOp(IrBase_Move, (BcSpecMove_Int32 << 4) | (reg & 0x0F));
     Write32(value);
 }
 
-void FoxIREmitter::EmitMoveReg32(FoxIRRegister dest_reg, FoxIRRegister src_reg)
+void FoxBytecodeEmitter::EmitMoveReg32(FoxIRRegister dest_reg, FoxIRRegister src_reg)
 {
     // Ignore if there is no work to do
     if (dest_reg == src_reg) {
         return;
     }
 
-    WriteOp(IrBase_Move, (IrSpecMove_Reg32 << 4) | (dest_reg & 0x0F));
+    WriteOp(IrBase_Move, (BcSpecMove_Reg32 << 4) | (dest_reg & 0x0F));
     Write16(src_reg);
 }
 
-void FoxIREmitter::EmitVariableSetInt32(uint16 var_index, int32 value)
+void FoxBytecodeEmitter::EmitVariableSetInt32(uint16 var_index, int32 value)
 {
-    WriteOp(IrBase_Variable, IrSpecVariable_Set_Int32);
+    WriteOp(IrBase_Variable, BcSpecVariable_Set_Int32);
     Write16(var_index);
     Write32(value);
 }
 
-void FoxIREmitter::EmitVariableSetReg32(uint16 var_index, FoxIRRegister reg)
+void FoxBytecodeEmitter::EmitVariableSetReg32(uint16 var_index, FoxIRRegister reg)
 {
-    WriteOp(IrBase_Variable, IrSpecVariable_Set_Reg32);
+    WriteOp(IrBase_Variable, BcSpecVariable_Set_Reg32);
     Write16(var_index);
     Write16(reg);
 }
 
-void FoxIREmitter::EmitVariableGetInt32(uint16 var_index, FoxIRRegister dest_reg)
+void FoxBytecodeEmitter::EmitVariableGetInt32(uint16 var_index, FoxIRRegister dest_reg)
 {
-    WriteOp(IrBase_Variable, IrSpecVariable_Get_Int32);
+    WriteOp(IrBase_Variable, BcSpecVariable_Get_Int32);
     Write16(var_index);
     Write16(dest_reg);
 }
 
-void FoxIREmitter::EmitParamsStart()
+void FoxBytecodeEmitter::EmitVariableDefineInt32(uint16 var_index, FoxHash name_hash)
 {
-    WriteOp(IrBase_Marker, IrSpecMarker_ParamsBegin);
+    WriteOp(BcBase_Variable, BcSpecVariable_Define_Int32);
+    Write16(var_index);
+    Write32(name_hash);
 }
 
-void FoxIREmitter::EmitType(FoxValue::ValueType type)
+void FoxBytecodeEmitter::EmitParamsStart()
 {
-    IrSpecType op_type = IrSpecType_Int;
+    WriteOp(IrBase_Marker, BcSpecMarker_ParamsBegin);
+}
+
+void FoxBytecodeEmitter::EmitType(FoxValue::ValueType type)
+{
+    BcSpecType op_type = BcSpecType_Int;
 
     if (type == FoxValue::STRING) {
-        op_type = IrSpecType_String;
+        op_type = BcSpecType_String;
     }
 
     WriteOp(IrBase_Type, op_type);
 }
 
-uint32 FoxIREmitter::EmitDataString(char* str, uint16 length)
+uint32 FoxBytecodeEmitter::EmitDataString(char* str, uint16 length)
 {
-    // WriteOp(IrBase_Data, IrSpecData_String);
+    // WriteOp(IrBase_Data, BcSpecData_String);
 
     uint32 start_index = mBytecode.Size();
     uint16 final_length = length;
@@ -473,22 +480,29 @@ uint32 FoxIREmitter::EmitDataString(char* str, uint16 length)
 
     Write16(final_length);
 
+    printf("String[Len=%02X %02X]: ", final_length >> 8, final_length & 0xFF);
 
     for (int i = 0; i < final_length; i++) {
         if (i >= length) {
+            printf("%02X ", 0);
+
             mBytecode.Insert(0);
             continue;
         }
 
+        printf("%02X ", str[i]);
+
         mBytecode.Insert(str[i]);
     }
+
+    printf("\n");
 
 
     return start_index;
 }
 
 
-FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle)
+FoxIRRegister FoxBytecodeEmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle)
 {
     bool rhs_is_binop = false;
 
@@ -507,7 +521,7 @@ FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* 
     }
 
     if (binop->OpToken->Type == TT::Plus) {
-        WriteOp(IrBase_Arith, IrSpecArith_Add_Reg32);
+        WriteOp(IrBase_Arith, BcSpecArith_Add_Reg32);
 
         mBytecode.Insert(lhs_register);
         mBytecode.Insert(rhs_register);
@@ -536,7 +550,7 @@ FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* 
     return lhs_register;
 }
 
-FoxIRRegister FoxIREmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
+FoxIRRegister FoxBytecodeEmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
 {
     FoxBytecodeVarHandle* var_handle = FindVarHandle(ref->Name->GetHash());
 
@@ -590,7 +604,7 @@ FoxIRRegister FoxIREmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
 }
 
 
-uint16 FoxIREmitter::GetSizeOfType(FoxTokenizer::Token* token)
+uint16 FoxBytecodeEmitter::GetSizeOfType(FoxTokenizer::Token* token)
 {
     const FoxHash type_hash = token->GetHash();
 
@@ -611,7 +625,7 @@ uint16 FoxIREmitter::GetSizeOfType(FoxTokenizer::Token* token)
 }
 
 
-void FoxIREmitter::DoLoad(uint32 stack_offset, FoxIRRegister output_reg, bool force_absolute)
+void FoxBytecodeEmitter::DoLoad(uint32 stack_offset, FoxIRRegister output_reg, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative load
@@ -627,7 +641,7 @@ void FoxIREmitter::DoLoad(uint32 stack_offset, FoxIRRegister output_reg, bool fo
     }
 }
 
-void FoxIREmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute)
+void FoxBytecodeEmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative save
@@ -643,7 +657,7 @@ void FoxIREmitter::DoSaveInt32(uint32 stack_offset, uint32 value, bool force_abs
     }
 }
 
-void FoxIREmitter::DoSaveReg32(uint32 stack_offset, FoxIRRegister reg, bool force_absolute)
+void FoxBytecodeEmitter::DoSaveReg32(uint32 stack_offset, FoxIRRegister reg, bool force_absolute)
 {
     if (stack_offset < 0xFFFE && !force_absolute) {
         // Relative save
@@ -659,7 +673,7 @@ void FoxIREmitter::DoSaveReg32(uint32 stack_offset, FoxIRRegister reg, bool forc
     }
 }
 
-void FoxIREmitter::EmitAssign(FoxAstAssign* assign)
+void FoxBytecodeEmitter::EmitAssign(FoxAstAssign* assign)
 {
     FoxBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->Name->GetHash());
     if (var_handle == nullptr) {
@@ -683,7 +697,7 @@ void FoxIREmitter::EmitAssign(FoxAstAssign* assign)
     EmitRhs(assign->Rhs, RhsMode::RHS_ASSIGN_TO_HANDLE, var_handle);
 }
 
-FoxIRRegister FoxIREmitter::EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle)
+FoxIRRegister FoxBytecodeEmitter::EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     // If this is on variable definition, push the value to the stack.
     if (mode == RhsMode::RHS_DEFINE_IN_MEMORY) {
@@ -719,7 +733,7 @@ FoxIRRegister FoxIREmitter::EmitLiteralInt(FoxAstLiteral* literal, RhsMode mode,
 }
 
 
-FoxIRRegister FoxIREmitter::EmitLiteralString(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle)
+FoxIRRegister FoxBytecodeEmitter::EmitLiteralString(FoxAstLiteral* literal, RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     const uint32 string_length = strlen(literal->Value.ValueString);
 
@@ -768,12 +782,12 @@ FoxIRRegister FoxIREmitter::EmitLiteralString(FoxAstLiteral* literal, RhsMode mo
     return FX_IR_GW3;
 }
 
-void FoxIREmitter::EmitMarker(IrSpecMarker spec)
+void FoxBytecodeEmitter::EmitMarker(BcSpecMarker spec)
 {
     WriteOp(IrBase_Marker, spec);
 }
 
-FoxIRRegister FoxIREmitter::EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister dest_register, bool auto_register)
+FoxIRRegister FoxBytecodeEmitter::EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister dest_register, bool auto_register)
 {
     if (auto_register) {
         dest_register = FindFreeReg32();
@@ -846,7 +860,7 @@ FoxIRRegister FoxIREmitter::EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister des
     return FX_IR_NONE;
 }
 
-FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode, FoxBytecodeVarHandle* handle)
+FoxIRRegister FoxBytecodeEmitter::EmitRhs(FoxAstNode* rhs, FoxBytecodeEmitter::RhsMode mode, FoxBytecodeVarHandle* handle)
 {
     if (rhs->NodeType == FX_AST_LITERAL) {
         FoxAstLiteral* literal = reinterpret_cast<FoxAstLiteral*>(rhs);
@@ -933,7 +947,7 @@ FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode,
     return FX_IR_GW3;
 }
 
-FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode)
+FoxBytecodeVarHandle* FoxBytecodeEmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclareMode mode)
 {
     RETURN_VALUE_IF_NO_NODE(decl, nullptr);
 
@@ -967,9 +981,9 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
         .VarIndexInScope = mVarsInScope,
     };
 
-    FoxLogDebug("DEFINING PARAM");
+    // FoxLogDebug("DEFINING PARAM");
 
-    mVarsInScope++;
+    // mVarsInScope++;
 
     VarHandles.Insert(handle);
 
@@ -1008,7 +1022,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
     return var_handle;
 }
 
-void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
+void FoxBytecodeEmitter::DoFunctionCall(FoxAstFunctionCall* call)
 {
     RETURN_IF_NO_NODE(call);
 
@@ -1069,7 +1083,7 @@ void FoxIREmitter::DoFunctionCall(FoxAstFunctionCall* call)
     mRegsInUse = precall_regs_in_use;
 }
 
-void FoxIREmitter::MarkVariablesAsClobbered(FoxIRRegister start_reg, FoxIRRegister end_reg)
+void FoxBytecodeEmitter::MarkVariablesAsClobbered(FoxIRRegister start_reg, FoxIRRegister end_reg)
 {
     for (FoxBytecodeVarHandle& var_handle : VarHandles) {
         if (var_handle.Register >= start_reg && var_handle.Register <= end_reg) {
@@ -1078,20 +1092,21 @@ void FoxIREmitter::MarkVariablesAsClobbered(FoxIRRegister start_reg, FoxIRRegist
     }
 }
 
-FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_node, uint16 index, bool alloc_stack_space)
+FoxBytecodeVarHandle* FoxBytecodeEmitter::DefineAndFetchParam(FoxAstNode* param_decl_node, uint16 index, bool alloc_stack_space)
 {
     if (param_decl_node->NodeType != FX_AST_VARDECL) {
         FoxLogError("Param node type is not vardecl!");
         return nullptr;
     }
 
-    FoxLogDebug("DEFINING PARAMETER");
+    FoxAstVarDecl* var_decl_node = reinterpret_cast<FoxAstVarDecl*>(param_decl_node);
 
     // Emit variable without emitting pushes or pops
-    FoxBytecodeVarHandle* handle = DoVarDeclare(reinterpret_cast<FoxAstVarDecl*>(param_decl_node), DECLARE_NO_EMIT);
+    FoxBytecodeVarHandle* handle = DoVarDeclare(var_decl_node, DECLARE_NO_EMIT);
+    FoxLogDebug("DEFINING PARAMETER {}", var_decl_node->Name->GetStr());
 
     if (alloc_stack_space) {
-        EmitStackAlloc(4);
+        EmitVariableDefineInt32(mVarsInScope++, var_decl_node->Name->GetHash());
     }
 
     if (!handle) {
@@ -1116,14 +1131,14 @@ FoxBytecodeVarHandle* FoxIREmitter::DefineAndFetchParam(FoxAstNode* param_decl_n
     return handle;
 }
 
-FoxBytecodeVarHandle* FoxIREmitter::DefineReturnVar(FoxAstVarDecl* decl)
+FoxBytecodeVarHandle* FoxBytecodeEmitter::DefineReturnVar(FoxAstVarDecl* decl)
 {
     RETURN_VALUE_IF_NO_NODE(decl, nullptr);
 
     return DoVarDeclare(decl);
 }
 
-void FoxIREmitter::EmitFunctionDefinitionsInBlock(FoxAstBlock* block)
+void FoxBytecodeEmitter::EmitFunctionDefinitionsInBlock(FoxAstBlock* block)
 {
     if (!block) {
         return;
@@ -1136,7 +1151,7 @@ void FoxIREmitter::EmitFunctionDefinitionsInBlock(FoxAstBlock* block)
     }
 }
 
-void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
+void FoxBytecodeEmitter::EmitFunction(FoxAstFunctionDecl* function)
 {
     RETURN_IF_NO_NODE(function);
 
@@ -1172,14 +1187,22 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
         }
 
         if (function->Name) {
-            EmitMarker(IrSpecMarker_FunctionName);
+            if (function->Block) {
+                EmitMarker(BcSpecMarker_Proc);
+            }
+            // There is no block attached, so we will assume for now it is defined externally.
+            else {
+                EmitMarker(BcSpecMarker_ExternalProc);
+            }
+
+            // EmitMarker(BcSpecMarker_FunctionName);
             FoxLogDebug("Data Name: {:.{}}\n", function->Name->Start, function->Name->Length);
             EmitDataString(function->Name->Start, function->Name->Length);
         }
 
-        if (!function->Block) {
-            EmitMarker(IrSpecMarker_ExtFn);
-        }
+        // if (!function->Block) {
+        //     EmitMarker(BcSpecMarker_ExtFn);
+        // }
 
         // Do not check if there are function definitions to be declared when emitting the block here as they are checked above, before any parameters
         // or stack allocations are output.
@@ -1241,7 +1264,7 @@ void FoxIREmitter::EmitFunction(FoxAstFunctionDecl* function)
     mVarsInScope = 0;
 }
 
-void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore_function_definitions)
+void FoxBytecodeEmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore_function_definitions)
 {
     RETURN_IF_NO_NODE(block);
 
@@ -1279,7 +1302,8 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
 
             uint32 stack_index = mStackOffset;
 
-            EmitStackAlloc(GetSizeOfType(var_decl->Type));
+            EmitVariableDefineInt32(mVarsInScope, var_decl->Name->GetHash());
+            // EmitStackAlloc(GetSizeOfType(var_decl->Type));
 
             FoxBytecodeVarHandle var_handle {
                 .HashedName = var_decl->Name->GetHash(),
@@ -1297,18 +1321,18 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
     }
 
     if (will_emit_entrypoint) {
-        EmitMarker(IrSpecMarker_EntryPoint);
+        EmitMarker(BcSpecMarker_EntryPoint);
     }
 
     if (does_block_branch) {
-        EmitMarker(IrSpecMarker_FunctionBranches);
+        EmitMarker(BcSpecMarker_FunctionBranches);
     }
 
     // After the stack allocations, mark the start of the frame.
-    EmitMarker(IrSpecMarker_FrameBegin);
+    EmitMarker(BcSpecMarker_FrameBegin);
 
     if (params_to_save != 0) {
-        EmitMarker(IrSpecMarker_ParamRegBlockBegin);
+        EmitMarker(BcSpecMarker_ParamRegBlockBegin);
 
         for (int i = 0; i < params_to_save; i++) {
             uint32 base_var_index = (mVarsInScope - params_to_save);
@@ -1317,7 +1341,7 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
             MarkRegisterFree(static_cast<FoxIRRegister>(FX_IR_PARAMREG0 + i));
         }
 
-        EmitMarker(IrSpecMarker_ParamRegBlockEnd);
+        EmitMarker(BcSpecMarker_ParamRegBlockEnd);
     }
 
 
@@ -1326,10 +1350,10 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
     }
 
     mVarsInScope = 0;
-    EmitMarker(IrSpecMarker_FrameEnd);
+    EmitMarker(BcSpecMarker_FrameEnd);
 }
 
-void FoxIREmitter::PrintBytecode()
+void FoxBytecodeEmitter::PrintBytecode()
 {
     const size_t size = mBytecode.Size();
     for (int i = 0; i < 25; i++) {
@@ -1351,7 +1375,7 @@ void FoxIREmitter::PrintBytecode()
     printf("\n");
 }
 
-bool FoxIREmitter::DoesNodeBranch(FoxAstNode* node)
+bool FoxBytecodeEmitter::DoesNodeBranch(FoxAstNode* node)
 {
     if (node == nullptr) {
         return false;
@@ -1398,15 +1422,22 @@ bool FoxIREmitter::DoesNodeBranch(FoxAstNode* node)
 // IR Printer
 /////////////////////////////////////
 
-uint16 FoxIRPrinter::Read16()
+uint16 FoxBytecodePrinter::Read16()
 {
     uint8 lo = mBytecode[mBytecodeIndex++];
     uint8 hi = mBytecode[mBytecodeIndex++];
 
     return ((static_cast<uint16>(lo) << 8) | hi);
 }
+uint16 FoxBytecodePrinter::Read16Rev()
+{
+    uint8 lo = mBytecode[mBytecodeIndex++];
+    uint8 hi = mBytecode[mBytecodeIndex++];
 
-uint32 FoxIRPrinter::Read32()
+    return ((static_cast<uint16>(hi) << 8) | lo);
+}
+
+uint32 FoxBytecodePrinter::Read32()
 {
     uint16 lo = Read16();
     uint16 hi = Read16();
@@ -1416,62 +1447,62 @@ uint32 FoxIRPrinter::Read32()
 
 #define BC_PRINT_OP(fmt_, ...) FoxLog<FoxLogChannel::None>(fmt_, ##__VA_ARGS__)
 
-void FoxIRPrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxBytecodePrinter::DoLoad(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
-    if (op_spec == IrSpecLoad_Int32) {
+    if (op_spec == BcSpecLoad_Int32) {
         int16 offset = Read16();
-        BC_PRINT_OP("load [i32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        BC_PRINT_OP("load [i32] {}, {}", offset, FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
-    else if (op_spec == IrSpecLoad_AbsoluteInt32) {
+    else if (op_spec == BcSpecLoad_AbsoluteInt32) {
         uint32 offset = Read32();
-        BC_PRINT_OP("loada [i32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+        BC_PRINT_OP("loada [i32] {}, {}", offset, FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
-void FoxIRPrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
+void FoxBytecodePrinter::DoPush(char* s, uint8 op_base, uint8 op_spec)
 {
-    if (op_spec == IrSpecPush_Int32) {
+    if (op_spec == BcSpecPush_Int32) {
         uint32 value = Read32();
         BC_PRINT_OP("push [i32] {}", value);
     }
-    else if (op_spec == IrSpecPush_Reg32) {
+    else if (op_spec == BcSpecPush_Reg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("push [r32] {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("push [r32] {}", FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
-    else if (op_spec == IrSpecPush_StackAlloc) {
+    else if (op_spec == BcSpecPush_StackAlloc) {
         uint16 size = Read16();
         BC_PRINT_OP("salloc {}", size);
     }
 }
 
-void FoxIRPrinter::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxBytecodePrinter::DoPop(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
-    if (op_spec == IrSpecPop_Int32) {
-        BC_PRINT_OP("pop [i32] {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
+    if (op_spec == BcSpecPop_Int32) {
+        BC_PRINT_OP("pop [i32] {}", FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)));
     }
 }
 
-void FoxIRPrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
+void FoxBytecodePrinter::DoArith(char* s, uint8 op_base, uint8 op_spec)
 {
     uint8 a_reg = mBytecode[mBytecodeIndex++];
     uint8 b_reg = mBytecode[mBytecodeIndex++];
 
-    if (op_spec == IrSpecArith_Add_Reg32) {
-        BC_PRINT_OP("add [i32] {}, {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
-                    FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
+    if (op_spec == BcSpecArith_Add_Reg32) {
+        BC_PRINT_OP("add [i32] {}, {}", FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(a_reg)),
+                    FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(b_reg)));
     }
 }
 
-void FoxIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
+void FoxBytecodePrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
 {
     // Save a imm32 into an offset in the stack
-    if (op_spec == IrSpecSave_Int32) {
+    if (op_spec == BcSpecSave_Int32) {
         const int16 offset = Read16();
         const uint32 value = Read32();
 
@@ -1479,66 +1510,66 @@ void FoxIRPrinter::DoSave(char* s, uint8 op_base, uint8 op_spec)
     }
 
     // Save a register into an offset in the stack
-    else if (op_spec == IrSpecSave_Reg32) {
+    else if (op_spec == BcSpecSave_Reg32) {
         const int16 offset = Read16();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("save [r32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("save [r32] {}, {}", offset, FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
-    else if (op_spec == IrSpecSave_AbsoluteInt32) {
+    else if (op_spec == BcSpecSave_AbsoluteInt32) {
         const uint32 offset = Read32();
         const uint32 value = Read32();
 
         BC_PRINT_OP("savea [i32] {}, {}", offset, value);
     }
-    else if (op_spec == IrSpecSave_AbsoluteReg32) {
+    else if (op_spec == BcSpecSave_AbsoluteReg32) {
         const uint32 offset = Read32();
         uint16 reg = Read16();
 
-        BC_PRINT_OP("savea [r32] {}, {}", offset, FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("savea [r32] {}, {}", offset, FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
 }
 
-void FoxIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
+void FoxBytecodePrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
 {
-    if (op_spec == IrSpecJump_Relative) {
+    if (op_spec == BcSpecJump_Relative) {
         uint16 offset = Read16();
         BC_PRINT_OP("jmpr {}", offset);
     }
-    else if (op_spec == IrSpecJump_Absolute) {
+    else if (op_spec == BcSpecJump_Absolute) {
         uint32 position = Read32();
         BC_PRINT_OP("jmpa {}", position);
     }
-    else if (op_spec == IrSpecJump_AbsoluteReg32) {
+    else if (op_spec == BcSpecJump_AbsoluteReg32) {
         uint16 reg = Read16();
-        BC_PRINT_OP("jmpar {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
+        BC_PRINT_OP("jmpar {}", FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(reg)));
     }
-    else if (op_spec == IrSpecJump_CallAbsolute) {
+    else if (op_spec == BcSpecJump_CallAbsolute) {
         uint32 position = Read32();
         BC_PRINT_OP("calla {}", position);
     }
-    else if (op_spec == IrSpecJump_ReturnToCaller) {
+    else if (op_spec == BcSpecJump_ReturnToCaller) {
         BC_PRINT_OP("ret");
     }
-    else if (op_spec == IrSpecJump_ReturnToCaller_Reg32) {
-        const char* reg_name = FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(Read16()));
+    else if (op_spec == BcSpecJump_ReturnToCaller_Reg32) {
+        const char* reg_name = FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(Read16()));
 
         BC_PRINT_OP("ret [r32] {}", reg_name);
     }
-    else if (op_spec == IrSpecJump_ReturnToCaller_Int32) {
+    else if (op_spec == BcSpecJump_ReturnToCaller_Int32) {
         int32 value = Read32();
         BC_PRINT_OP("ret [i32] {}", value);
     }
-    else if (op_spec == IrSpecJump_CallExternal) {
+    else if (op_spec == BcSpecJump_CallExternal) {
         uint32 hashed_name = Read32();
         BC_PRINT_OP("callext {}", hashed_name);
     }
 }
 
 
-void FoxIRPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
+void FoxBytecodePrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
 {
-    if (op_spec == IrSpecData_String) {
+    if (op_spec == BcSpecData_String) {
         uint16 length = Read16();
         char* data_str = FX_SCRIPT_ALLOC_MEMORY(char, length);
         uint16* data_str16 = reinterpret_cast<uint16*>(data_str);
@@ -1556,57 +1587,79 @@ void FoxIRPrinter::DoData(char* s, uint8 op_base, uint8 op_spec)
     }
 }
 
-void FoxIRPrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
+void FoxBytecodePrinter::DoType(char* s, uint8 op_base, uint8 op_spec)
 {
-    if (op_spec == IrSpecType_Int) {
+    if (op_spec == BcSpecType_Int) {
         BC_PRINT_OP("type int");
     }
-    else if (op_spec == IrSpecType_String) {
+    else if (op_spec == BcSpecType_String) {
         BC_PRINT_OP("type str");
     }
 }
 
-void FoxIRPrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
+void FoxBytecodePrinter::DoMove(char* s, uint8 op_base, uint8 op_spec_raw)
 {
     uint8 op_spec = ((op_spec_raw >> 4) & 0x0F);
     uint8 op_reg = (op_spec_raw & 0x0F);
 
-    if (op_spec == IrSpecMove_Int32) {
+    if (op_spec == BcSpecMove_Int32) {
         uint32 value = Read32();
-        BC_PRINT_OP("move [i32] {}, {}", FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
+        BC_PRINT_OP("move [i32] {}, {}", FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg)), value);
     }
-    else if (op_spec == IrSpecMove_Reg32) {
-        const char* dest_reg = FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg));
-        const char* src_reg = FoxIREmitter::GetRegisterName(static_cast<FoxIRRegister>(Read16()));
+    else if (op_spec == BcSpecMove_Reg32) {
+        const char* dest_reg = FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(op_reg));
+        const char* src_reg = FoxBytecodeEmitter::GetRegisterName(static_cast<FoxIRRegister>(Read16()));
 
         BC_PRINT_OP("move [r32] {}, {}", dest_reg, src_reg);
     }
 }
 
-void FoxIRPrinter::DoMarker(char* s, uint8 op_base, uint8 op_spec)
+char* FoxBytecodePrinter::ReadString(char* buffer, uint32 buffer_size)
 {
-    if (op_spec == IrSpecMarker_FrameBegin) {
+    uint32 string_length = Read16();
+
+    if (string_length > buffer_size) {
+        FoxLogWarning("String length is greater than the read buffer size! ({} > {})", string_length, buffer_size);
+        string_length = buffer_size;
+    }
+
+    uint16* u16_buffer = reinterpret_cast<uint16*>(buffer);
+    for (int index = 0; index < string_length; index += sizeof(uint16)) {
+        (*u16_buffer) = Read16Rev();
+        u16_buffer++;
+    }
+
+    return buffer;
+}
+
+void FoxBytecodePrinter::DoMarker(char* s, uint8 op_base, uint8 op_spec)
+{
+    constexpr int cTempBufferSize = 256;
+
+    char temp_buffer[cTempBufferSize];
+
+    if (op_spec == BcSpecMarker_FrameBegin) {
         BC_PRINT_OP("@FrameBegin");
     }
-    else if (op_spec == IrSpecMarker_FrameEnd) {
+    else if (op_spec == BcSpecMarker_FrameEnd) {
         BC_PRINT_OP("@FrameEnd");
     }
-    else if (op_spec == IrSpecMarker_ParamsBegin) {
+    else if (op_spec == BcSpecMarker_ParamsBegin) {
         BC_PRINT_OP("@Params");
     }
-    else if (op_spec == IrSpecMarker_ParamRegBlockBegin) {
+    else if (op_spec == BcSpecMarker_ParamRegBlockBegin) {
         BC_PRINT_OP("@ParamRegBlockBegin");
     }
-    else if (op_spec == IrSpecMarker_ParamRegBlockEnd) {
+    else if (op_spec == BcSpecMarker_ParamRegBlockEnd) {
         BC_PRINT_OP("@ParamRegBlockEnd");
     }
-    else if (op_spec == IrSpecMarker_EntryPoint) {
+    else if (op_spec == BcSpecMarker_EntryPoint) {
         BC_PRINT_OP("@Entry");
     }
-    else if (op_spec == IrSpecMarker_FunctionBranches) {
+    else if (op_spec == BcSpecMarker_FunctionBranches) {
         BC_PRINT_OP("@Branches");
     }
-    else if (op_spec == IrSpecMarker_FunctionName) {
+    else if (op_spec == BcSpecMarker_FunctionName) {
         char name_buffer[256];
         uint32 name_length = Read16();
 
@@ -1617,40 +1670,51 @@ void FoxIRPrinter::DoMarker(char* s, uint8 op_base, uint8 op_spec)
 
         BC_PRINT_OP("@FunctionName {:.{}}", name_buffer, name_length);
     }
-    else if (op_spec == IrSpecMarker_ExtFn) {
+    else if (op_spec == BcSpecMarker_ExtFn) {
         BC_PRINT_OP("@ExtFn");
+    }
+    else if (op_spec == BcSpecMarker_Proc) {
+        BC_PRINT_OP("\nPROC {}", ReadString(temp_buffer, cTempBufferSize));
+    }
+    else if (op_spec == BcSpecMarker_ExternalProc) {
+        BC_PRINT_OP("\nEXTERNAL PROC {}", ReadString(temp_buffer, cTempBufferSize));
     }
 }
 
 
-void FoxIRPrinter::DoVariable(char* s, uint8 op_base, uint8 op_spec)
+void FoxBytecodePrinter::DoVariable(char* s, uint8 op_base, uint8 op_spec)
 {
-    if (op_spec == IrSpecVariable_Get_Int32) {
+    if (op_spec == BcSpecVariable_Get_Int32) {
         uint16 var_index = Read16();
         FoxIRRegister dest_reg = static_cast<FoxIRRegister>(Read16());
-        BC_PRINT_OP("vget [i32] ${}, {}", var_index, FoxIREmitter::GetRegisterName(dest_reg));
+        BC_PRINT_OP("vget [i32] ${}, {}", var_index, FoxBytecodeEmitter::GetRegisterName(dest_reg));
     }
-    else if (op_spec == IrSpecVariable_Set_Int32) {
+    else if (op_spec == BcSpecVariable_Set_Int32) {
         uint16 var_index = Read16();
         uint32 value = Read32();
         BC_PRINT_OP("vset [i32] ${}, {}", var_index, value);
     }
-    else if (op_spec == IrSpecVariable_Set_Reg32) {
+    else if (op_spec == BcSpecVariable_Set_Reg32) {
         uint16 var_index = Read16();
         FoxIRRegister reg = static_cast<FoxIRRegister>(Read16());
-        BC_PRINT_OP("vset [r32] ${}, {}", var_index, FoxIREmitter::GetRegisterName(reg));
+        BC_PRINT_OP("vset [r32] ${}, {}", var_index, FoxBytecodeEmitter::GetRegisterName(reg));
+    }
+    else if (op_spec == BcSpecVariable_Define_Int32) {
+        uint16 var_index = Read16();
+        FoxHash name_hash = Read32();
+        BC_PRINT_OP("DEFINE [int32] {} AS ${}", name_hash, var_index);
     }
 }
 
 
-void FoxIRPrinter::Print()
+void FoxBytecodePrinter::Print()
 {
     while (mBytecodeIndex < mBytecode.Size()) {
         PrintOp();
     }
 }
 
-void FoxIRPrinter::PrintOp()
+void FoxBytecodePrinter::PrintOp()
 {
     // uint32 bc_index = mBytecodeIndex;
 

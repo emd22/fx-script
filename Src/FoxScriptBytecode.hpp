@@ -3,80 +3,120 @@
 #include "FoxScriptUtil.hpp"
 
 
-/*
-[BASE] [SPEC]
-*/
+/////////////////////////////////////////////
+// NEW IR Bytecode
+/////////////////////////////////////////////
 
-enum OpBase : uint8
+
+enum FoxBytecodeBase : uint8
 {
-    OpBase_Push = 1,
-    OpBase_Pop,
-    OpBase_Load,
-    OpBase_Arith,
-    OpBase_Save,
-    OpBase_Jump,
-    OpBase_Data,
-    OpBase_Type,
-    OpBase_Move,
+    BcBase_Push = 1,
+    BcBase_Pop,
+    BcBase_Load,
+    BcBase_Arith,
+    BcBase_Save,
+    BcBase_Jump,
+    BcBase_Data,
+    BcBase_Type,
+    BcBase_Move,
+    BcBase_Marker,
+
+    BcBase_Variable,
 };
 
-enum OpSpecPush : uint8
+enum BcSpecPush : uint8
 {
-    OpSpecPush_Int32 = 1, // PUSH32  [imm]
-    OpSpecPush_Reg32,     // PUSH32r [%r32]
+    BcSpecPush_Int32 = 1, // PUSH32  [imm]
+    BcSpecPush_Reg32,     // PUSH32r [%r32]
+
+    BcSpecPush_StackAlloc,
 };
 
-enum OpSpecPop : uint8
+enum BrSpecPop : uint8
 {
-    OpSpecPop_Int32 = 1, // POP32 [%r32]
+    BcSpecPop_Int32 = 1, // PIr32 [%r32]
+    BcSpecPop_Variable_Int32,
 };
 
-enum OpSpecLoad : uint8
+enum BrSpecLoad : uint8
 {
-    OpSpecLoad_Int32 = 1, // LOAD32 [offset] [%r32]
-    OpSpecLoad_AbsoluteInt32,
+    BcSpecLoad_Int32 = 1, // LOAD32 [offset] [%r32]
+    BcSpecLoad_AbsoluteInt32,
 };
 
-enum OpSpecArith : uint8
+enum BcSpecArith : uint8
 {
-    OpSpecArith_Add = 1 // ADD [%r32] [%r32]
+    BcSpecArith_Add_Reg32 = 1 // ADD [%r32] [%r32]
 };
 
-enum OpSpecSave : uint8
+enum BcSpecSave : uint8
 {
-    OpSpecSave_Int32 = 1,
-    OpSpecSave_Reg32,
-    OpSpecSave_AbsoluteInt32,
-    OpSpecSave_AbsoluteReg32
+    BcSpecSave_Int32 = 1,
+    BcSpecSave_Reg32,
+    BcSpecSave_AbsoluteInt32,
+    BcSpecSave_AbsoluteReg32
 };
 
-enum OpSpecJump : uint8
+enum BcSpecJump : uint8
 {
-    OpSpecJump_Relative = 1,
-    OpSpecJump_Absolute,
-    OpSpecJump_AbsoluteReg32,
+    BcSpecJump_Relative = 1,
+    BcSpecJump_Absolute,
+    BcSpecJump_AbsoluteReg32,
 
-    OpSpecJump_CallAbsolute,
-    OpSpecJump_ReturnToCaller,
+    BcSpecJump_CallAbsolute,
 
-    OpSpecJump_CallExternal,
+    BcSpecJump_ReturnToCaller,
+    BcSpecJump_ReturnToCaller_Int32,
+    BcSpecJump_ReturnToCaller_Reg32,
+
+    BcSpecJump_CallExternal,
 };
 
-enum OpSpecData : uint8
+enum BcSpecData : uint8
 {
-    OpSpecData_String = 1,
-    OpSpecData_ParamsStart,
+    BcSpecData_String = 1,
 };
 
-enum OpSpecType : uint8
+enum BcSpecType : uint8
 {
-    OpSpecType_Int = 1,
-    OpSpecType_String,
+    BcSpecType_Int = 1,
+    BcSpecType_String,
 };
 
-enum OpSpecMove : uint8
+enum BcSpecMove : uint8
 {
-    OpSpecMove_Int32 = 1,
+    BcSpecMove_Int32 = 1,
+    BcSpecMove_Reg32,
+};
+
+enum BcSpecMarker : uint8
+{
+    // Function frame ops
+    BcSpecMarker_FrameBegin = 1,
+    BcSpecMarker_FrameEnd,
+
+    BcSpecMarker_ParamsBegin,
+    BcSpecMarker_ParamRegBlockBegin,
+    BcSpecMarker_ParamRegBlockEnd,
+
+    BcSpecMarker_EntryPoint,
+    BcSpecMarker_FunctionBranches,
+
+    BcSpecMarker_FunctionName,
+
+    BcSpecMarker_ExtFn,
+
+    BcSpecMarker_Proc,
+    BcSpecMarker_ExternalProc,
+};
+
+enum BcSpecVariable : uint8
+{
+    BcSpecVariable_Set_Int32 = 1,
+    BcSpecVariable_Set_Reg32,
+    BcSpecVariable_Get_Int32,
+
+    BcSpecVariable_Define_Int32,
 };
 
 

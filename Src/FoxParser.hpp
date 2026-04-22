@@ -39,7 +39,7 @@ public:
 
     FoxValue ParseValue();
 
-    FoxAstFunctionDecl* ParseFunctionDeclare();
+    FoxAstFunctionDecl* ParseProcedureDeclare();
     FoxAstFunctionDecl* ParseExtfnDeclare();
 
     FoxAstNode* ParseRhs();

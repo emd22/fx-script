@@ -1,0 +1,7 @@
+
+extern proc wep_set_enabled(int value);
+
+proc wep_pickup()
+{
+    delay(seconds(1), wep_set_enabled, 1);
+}

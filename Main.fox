@@ -1,6 +1,10 @@
-// @include "T_ClobberDemo.fox"
-@include "Std.fox"
+local int some_value = 20;
 
-printc(65);
 
-return 0;
+proc test(int x) int {
+    return x + 5;
+}
+
+local int return_value = some_value + test(2);
+
+return return_value;

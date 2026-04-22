@@ -16,12 +16,12 @@ public:
 
     struct State
     {
-        char* Data = nullptr;
-        char* DataEnd = nullptr;
-        bool InString = false;
+        char* pData = nullptr;
+        char* pDataEnd = nullptr;
+        bool bInString = false;
 
         uint32 FileLine = 0;
-        char* StartOfLine = nullptr;
+        char* pStartOfLine = nullptr;
     };
 
 
@@ -218,7 +218,7 @@ public:
 
     FoxTokenizer() = delete;
 
-    FoxTokenizer(char* data, uint32 buffer_size) : mData(data), mDataEnd(data + buffer_size), mStartOfLine(data)
+    FoxTokenizer(char* data, uint32 buffer_size) : mpData(data), mpDataEnd(data + buffer_size), mpLinePtr(data)
     {
     }
 
@@ -296,27 +296,27 @@ public:
         }
 
         if (end_ptr == nullptr) {
-            end_ptr = mData;
+            end_ptr = mpData;
         }
 
         if (start_ptr == nullptr) {
-            start_ptr = mData;
+            start_ptr = mpData;
         }
 
-        token.End = mData;
+        token.End = mpData;
         token.Type = GetTokenType(token);
 
         mTokens.Insert(token);
         token.Clear();
 
-        token.Start = mData;
+        token.Start = mpData;
 
         uint16 column = 1;
-        if (mStartOfLine) {
-            column = static_cast<uint16>((mData - mStartOfLine));
+        if (mpLinePtr) {
+            column = static_cast<uint16>((mpData - mpLinePtr));
         }
         token.FileColumn = column;
-        token.FileLine = mFileLine + 1;
+        token.FileLine = mLineNumber + 1;
     }
 
     bool CheckOperators(Token& current_token, char ch)
@@ -329,15 +329,15 @@ public:
 
         if (is_operator) {
             // If there is data waiting, submit to the token list
-            SubmitTokenIfData(current_token, mData);
+            SubmitTokenIfData(current_token, mpData);
 
             // Submit the operator as its own token
             current_token.Increment();
 
-            char* end_of_operator = mData;
-            ++mData;
+            char* end_of_operator = mpData;
+            ++mpData;
 
-            SubmitTokenIfData(current_token, end_of_operator, mData);
+            SubmitTokenIfData(current_token, end_of_operator, mpData);
 
             return true;
         }
@@ -348,11 +348,11 @@ public:
     uint32 ReadQuotedString(char* buffer, uint32 max_size, bool skip_on_success = true)
     {
         char ch;
-        char* data = mData;
+        char* data = mpData;
 
         uint32 buf_size = 0;
 
-        if (data >= mDataEnd) {
+        if (data >= mpDataEnd) {
             return 0;
         }
 
@@ -384,7 +384,7 @@ public:
         }
 
         if (skip_on_success) {
-            mData = data;
+            mpData = data;
         }
 
         buffer[buf_size] = 0;
@@ -397,9 +397,9 @@ public:
         char ch;
         int expected_index = 0;
 
-        char* data = mData;
+        char* data = mpData;
 
-        while (data < mDataEnd && ((ch = *(data)))) {
+        while (data < mpDataEnd && ((ch = *(data)))) {
             if (!expected_value[expected_index]) {
                 break;
             }
@@ -413,7 +413,7 @@ public:
         }
 
         if (skip_on_success) {
-            mData = data;
+            mpData = data;
         }
 
         return true;
@@ -433,9 +433,9 @@ public:
         // Save the current state of the tokenizer
         SaveState();
 
-        mData = include_data;
-        mDataEnd = include_data + include_size;
-        mInString = false;
+        mpData = include_data;
+        mpDataEnd = include_data + include_size;
+        mbInString = false;
 
         // Tokenize all of the included file
         Tokenize();
@@ -486,8 +486,8 @@ public:
     {
         const bool is_newline = (ch == '\n');
         if (is_newline) {
-            ++mFileLine;
-            mStartOfLine = mData;
+            ++mLineNumber;
+            mpLinePtr = mpData;
         }
         return is_newline;
     }
@@ -499,23 +499,23 @@ public:
         }
 
         Token current_token;
-        current_token.Start = mData;
+        current_token.Start = mpData;
 
         bool in_comment = false;
         bool is_doccomment = false;
 
         char ch;
 
-        while (mData < mDataEnd && ((ch = *(mData)))) {
-            if (ch == '/' && ((mData + 1) < mDataEnd) && ((*(mData + 1)) == '/')) {
+        while (mpData < mpDataEnd && ((ch = *(mpData)))) {
+            if (ch == '/' && ((mpData + 1) < mpDataEnd) && ((*(mpData + 1)) == '/')) {
                 SubmitTokenIfData(current_token);
                 in_comment = true;
 
-                ++mData;
-                if (*(++mData) == '?') {
-                    while ((ch = *(++mData))) {
+                ++mpData;
+                if (*(++mpData) == '?') {
+                    while ((ch = *(++mpData))) {
                         if (isalnum(ch) || ch == '\n') {
-                            current_token.Start = mData;
+                            current_token.Start = mpData;
                             break;
                         }
                     }
@@ -523,15 +523,15 @@ public:
                 }
             }
 
-            if (ch == '/' && ((mData + 1) < mDataEnd) && ((*(mData + 1)) == '*')) {
+            if (ch == '/' && ((mpData + 1) < mpDataEnd) && ((*(mpData + 1)) == '*')) {
                 SubmitTokenIfData(current_token);
                 in_comment = true;
 
-                ++mData;
+                ++mpData;
 
-                while ((mData + 1 < mDataEnd) && (ch = *(++mData))) {
-                    if (ch == '*' && ((mData + 1) < mDataEnd) && (*(mData + 1) == '/')) {
-                        current_token.Start = mData;
+                while ((mpData + 1 < mpDataEnd) && (ch = *(++mpData))) {
+                    if (ch == '*' && ((mpData + 1) < mpDataEnd) && (*(mpData + 1) == '/')) {
+                        current_token.Start = mpData;
                         break;
                     }
                 }
@@ -541,7 +541,7 @@ public:
             // below by the IsWhitespace check.
             if (in_comment) {
                 if (!IsNewline(ch)) {
-                    ++mData;
+                    ++mpData;
                     if (is_doccomment) {
                         current_token.Increment();
                     }
@@ -563,26 +563,26 @@ public:
 
             if (ch == '"') {
                 // If we are not currently in a string, submit the token if there is data waiting
-                if (!mInString) {
+                if (!mbInString) {
                     SubmitTokenIfData(current_token);
                 }
 
-                mInString = !mInString;
+                mbInString = !mbInString;
             }
 
-            if (mInString) {
-                ++mData;
+            if (mbInString) {
+                ++mpData;
                 current_token.Increment();
                 continue;
             }
 
             // Internal call
             if (ch == '@') {
-                ++mData;
+                ++mpData;
                 TryReadInternalCall();
 
                 current_token.Length = 0;
-                current_token.Start = mData;
+                current_token.Start = mpData;
 
                 continue;
             }
@@ -590,8 +590,8 @@ public:
             if (IsWhitespace(ch)) {
                 SubmitTokenIfData(current_token);
 
-                mData++;
-                current_token.Start = mData;
+                mpData++;
+                current_token.Start = mpData;
                 continue;
             }
 
@@ -599,7 +599,7 @@ public:
                 continue;
             }
 
-            mData++;
+            mpData++;
             current_token.Increment();
         }
         SubmitTokenIfData(current_token);
@@ -607,8 +607,8 @@ public:
 
     size_t GetTokenIndexInFile(Token& token) const
     {
-        assert(token.Start > mData);
-        return (token.Start - mData);
+        assert(token.Start > mpData);
+        return (token.Start - mpData);
     }
 
     FoxMPPagedArray<Token>& GetTokens()
@@ -618,22 +618,22 @@ public:
 
     void SaveState()
     {
-        mSavedState.Data = mData;
-        mSavedState.DataEnd = mDataEnd;
-        mSavedState.InString = mInString;
+        mSavedState.pData = mpData;
+        mSavedState.pDataEnd = mpDataEnd;
+        mSavedState.bInString = mbInString;
 
-        mSavedState.FileLine = mFileLine;
-        mSavedState.StartOfLine = mStartOfLine;
+        mSavedState.FileLine = mLineNumber;
+        mSavedState.pStartOfLine = mpLinePtr;
     }
 
     void RestoreState()
     {
-        mData = mSavedState.Data;
-        mDataEnd = mSavedState.DataEnd;
-        mInString = mSavedState.InString;
+        mpData = mSavedState.pData;
+        mpDataEnd = mSavedState.pDataEnd;
+        mbInString = mSavedState.bInString;
 
-        mFileLine = mSavedState.FileLine;
-        mStartOfLine = mSavedState.StartOfLine;
+        mLineNumber = mSavedState.FileLine;
+        mpLinePtr = mSavedState.pStartOfLine;
     }
 
 private:
@@ -645,13 +645,13 @@ private:
 private:
     State mSavedState;
 
-    char* mData = nullptr;
-    char* mDataEnd = nullptr;
+    char* mpData = nullptr;
+    char* mpDataEnd = nullptr;
 
-    bool mInString = false;
+    bool mbInString = false;
 
-    uint32 mFileLine = 0;
-    char* mStartOfLine = nullptr;
+    uint32 mLineNumber = 0;
+    char* mpLinePtr = nullptr;
 
     FoxMPPagedArray<Token> mTokens;
 };

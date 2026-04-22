@@ -1,5 +1,5 @@
 #!/bin/sh
 make run
-clang Out.asm -o Out
-./Out
+# clang Out.asm -o Out
+# ./Out
 # echo $?

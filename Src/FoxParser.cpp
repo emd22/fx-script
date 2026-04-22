@@ -1,7 +1,7 @@
 #include "FoxParser.hpp"
 
-#include "FoxCGArm64.hpp"
-#include "FoxIR.hpp"
+#include "FoxBytecode.hpp"
+// #include "FoxCGArm64.hpp"
 #include "FoxLog.hpp"
 #include "FoxTokenizer.hpp"
 
@@ -149,7 +149,7 @@ FoxAstNode* FoxConfigScript::TryParseKeyword(FoxAstBlock* parent_block)
     FoxHash hash = tk.GetHash();
 
     // function [name] ( < [arg type] [arg name] ...> ) { <statements...> }
-    constexpr FoxHash kw_function = FoxHashStr("fn");
+    constexpr FoxHash kw_proc = FoxHashStr("proc");
 
     constexpr FoxHash kw_extfn = FoxHashStr("extfn");
 
@@ -167,10 +167,10 @@ FoxAstNode* FoxConfigScript::TryParseKeyword(FoxAstBlock* parent_block)
 
     // extern [name of function] ;
 
-    if (hash == kw_function) {
+    if (hash == kw_proc) {
         EatToken(TT::Identifier);
         // ParseFunctionDeclare();
-        return ParseFunctionDeclare();
+        return ParseProcedureDeclare();
     }
     if (hash == kw_extfn) {
         EatToken(TT::Identifier);
@@ -384,20 +384,20 @@ void FoxConfigScript::Execute()
     PrintFunctionTable(*mCurrentScope);
 
 
-    FoxIREmitter ir_emitter;
-    ir_emitter.BeginEmitting(mRootBlock);
+    FoxBytecodeEmitter bc_emitter;
+    bc_emitter.BeginEmitting(mRootBlock);
 
     printf("\n=====\n");
 
-    FoxIRPrinter ir_printer(ir_emitter.mBytecode);
+    FoxBytecodePrinter bc_printer(bc_emitter.mBytecode);
 
-    ir_printer.Print();
+    bc_printer.Print();
 
     printf("\n=====\n");
 
-    FoxIRToArm64 ir_to_arm64(ir_emitter.mBytecode);
+    // FoxIRToArm64 ir_to_arm64(ir_emitter.mBytecode);
 
-    ir_to_arm64.Print();
+    // ir_to_arm64.Print();
 
     FoxAstDestroyer destroyer(mRootBlock);
 }
@@ -755,7 +755,7 @@ FoxAstBlock* FoxConfigScript::ParseBlock()
     return block;
 }
 
-FoxAstFunctionDecl* FoxConfigScript::ParseFunctionDeclare()
+FoxAstFunctionDecl* FoxConfigScript::ParseProcedureDeclare()
 {
     FoxAstFunctionDecl* node = FX_SCRIPT_ALLOC_NODE(FoxAstFunctionDecl);
 
