@@ -28,6 +28,7 @@ enum BcSpecPush : uint8
 {
     BcSpecPush_Int32 = 1, // PUSH32  [imm]
     BcSpecPush_Reg32,     // PUSH32r [%r32]
+    BcSpecPush_Var,       // VPUSH [%var]
 
     BcSpecPush_StackAlloc,
 };
@@ -46,7 +47,7 @@ enum BrSpecLoad : uint8
 
 enum BcSpecArith : uint8
 {
-    BcSpecArith_Add_Reg32 = 1 // ADD [%r32] [%r32]
+    BcSpecArith_Add = 1 // ADD [%var] [%var]
 };
 
 enum BcSpecSave : uint8
@@ -108,12 +109,16 @@ enum BcSpecMarker : uint8
 
     BcSpecMarker_Proc,
     BcSpecMarker_ExternalProc,
+
+    BcSpecMarker_ProcEnd,
+
 };
 
 enum BcSpecVariable : uint8
 {
     BcSpecVariable_Set_Int32 = 1,
     BcSpecVariable_Set_Reg32,
+    BcSpecVariable_Set_Var,
     BcSpecVariable_Get_Int32,
 
     BcSpecVariable_Define_Int32,
@@ -211,9 +216,9 @@ enum IrSpecMarker : uint8
     IrSpecMarker_FrameBegin = 1,
     IrSpecMarker_FrameEnd,
 
+    IrSpecMarker_ParamPushBlockBegin,
     IrSpecMarker_ParamsBegin,
-    IrSpecMarker_ParamRegBlockBegin,
-    IrSpecMarker_ParamRegBlockEnd,
+    IrSpecMarker_ParamsEnd,
 
     IrSpecMarker_EntryPoint,
     IrSpecMarker_FunctionBranches,

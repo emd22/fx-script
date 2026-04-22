@@ -9,6 +9,9 @@
 ////////////////////////////////////////////
 
 
+using VarIndex = uint16;
+constexpr VarIndex VarIndexNull = UINT16_MAX;
+
 struct FoxIRFunctionRef
 {
     char* Name = nullptr;
@@ -52,7 +55,7 @@ public:
 
 
 private:
-    void EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore_function_definitions = false);
+    void EmitBlock(FoxAstBlock* block, int params_to_save, bool is_function_body);
     void EmitFunction(FoxAstFunctionDecl* function);
     void EmitFunctionDefinitionsInBlock(FoxAstBlock* block);
     void DoFunctionCall(FoxAstFunctionCall* call);
@@ -71,10 +74,13 @@ private:
 
     void EmitPush32(uint32 value);
     void EmitPush32r(FoxIRRegister reg);
+    void EmitPushVar(VarIndex var);
+    void EmitPushVarOrLiteral(FoxAstNode* node);
 
     void EmitStackAlloc(uint16 size);
 
     void EmitPop32(FoxIRRegister output_reg);
+    void EmitPopVar(VarIndex var);
 
     void EmitLoad32(int offset, FoxIRRegister output_reg);
     void EmitLoadAbsolute32(uint32 position, FoxIRRegister output_reg);
@@ -99,8 +105,11 @@ private:
     void EmitVariableGetInt32(uint16 var_index, FoxIRRegister dest_reg);
     void EmitVariableSetInt32(uint16 var_index, int32 value);
     void EmitVariableSetReg32(uint16 var_index, FoxIRRegister reg);
+    void EmitVariableSetVar(VarIndex dst, VarIndex src);
+
 
     void EmitVariableDefineInt32(uint16 var_index, FoxHash name_hash);
+    void EmitVariableIndex(uint16 var_index);
 
     void EmitMoveInt32(FoxIRRegister reg, uint32 value);
     void EmitMoveReg32(FoxIRRegister dest_reg, FoxIRRegister src_reg);
@@ -110,9 +119,9 @@ private:
 
     uint32 EmitDataString(char* str, uint16 length);
 
-    FoxIRRegister EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle);
+    void EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* handle);
 
-    FoxIRRegister EmitRhs(FoxAstNode* rhs, RhsMode mode, FoxBytecodeVarHandle* handle);
+    void EmitRhs(FoxAstNode* rhs, RhsMode mode, FoxBytecodeVarHandle* handle);
 
     FoxIRRegister EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister dest_register, bool auto_register = false);
     // FoxIRRegister EmitRhs(FoxAstNode* rhs, RhsMode mode, FoxBytecodeVarHandle* handle);
@@ -130,6 +139,8 @@ private:
     FoxIRRegister FindFreeReg64();
 
     FoxBytecodeVarHandle* FindVarHandle(FoxHash hashed_name);
+    VarIndex FindVarInScope(FoxHash hashed_name);
+
     FoxBytecodeFunctionHandle* FindFunctionHandle(FoxHash hashed_name);
 
     void PrintBytecode();

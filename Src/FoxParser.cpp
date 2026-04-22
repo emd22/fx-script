@@ -415,10 +415,10 @@ FoxValue FoxConfigScript::ParseValue()
             value.Type = FoxValue::REF;
 
             FoxAstVarRef* var_ref = FX_SCRIPT_ALLOC_NODE(FoxAstVarRef);
-            var_ref->Name = var->Name;
+            var_ref->pName = var->Name;
             var_ref->Scope = var->Scope;
 
-            value.ValueRef = var_ref;
+            value.pValueRef = var_ref;
 
             EatToken(TT::Identifier);
 
@@ -526,9 +526,9 @@ FoxAstNode* FoxConfigScript::ParseRhs()
     if (op_type == TT::Plus || op_type == TT::Minus) {
         FoxAstBinop* binop = FX_SCRIPT_ALLOC_NODE(FoxAstBinop);
 
-        binop->Left = lhs;
+        binop->pLeft = lhs;
         binop->OpToken = &EatToken(op_type);
-        binop->Right = ParseRhs();
+        binop->pRight = ParseRhs();
 
         return binop;
     }
@@ -547,7 +547,7 @@ FoxAstAssign* FoxConfigScript::TryParseAssignment(FoxTokenizer::Token* var_name)
     FoxAstAssign* node = FX_SCRIPT_ALLOC_NODE(FoxAstAssign);
 
     FoxAstVarRef* var_ref = FX_SCRIPT_ALLOC_NODE(FoxAstVarRef);
-    var_ref->Name = var_name;
+    var_ref->pName = var_name;
     var_ref->Scope = mCurrentScope;
     node->Var = var_ref;
 
@@ -723,7 +723,7 @@ FoxAstNode* FoxConfigScript::ParseStatement(FoxAstBlock* parent_block)
     }
 
     // Blocks do not require semicolons
-    if (node->NodeType == FX_AST_BLOCK || node->NodeType == FX_AST_ACTIONDECL) {
+    if (node->NodeType == FX_AST_BLOCK || node->NodeType == FX_AST_PROCDECL) {
         return node;
     }
 
@@ -1040,7 +1040,7 @@ void FoxAstDestroyer::Do(FoxAstNode* node)
 
         FX_SCRIPT_FREE(FoxAstBlock, block);
     }
-    else if (node->NodeType == FX_AST_ACTIONDECL) {
+    else if (node->NodeType == FX_AST_PROCDECL) {
         FoxAstFunctionDecl* functiondecl = reinterpret_cast<FoxAstFunctionDecl*>(node);
 
         for (FoxAstNode* param : functiondecl->Params->Statements) {
@@ -1065,7 +1065,7 @@ void FoxAstDestroyer::Do(FoxAstNode* node)
 
         FX_SCRIPT_FREE(FoxAstAssign, assign);
     }
-    else if (node->NodeType == FX_AST_ACTIONCALL) {
+    else if (node->NodeType == FX_AST_PROCCALL) {
         FoxAstFunctionCall* functioncall = reinterpret_cast<FoxAstFunctionCall*>(node);
 
         FX_SCRIPT_FREE(FoxAstFunctionCall, functioncall);
@@ -1078,8 +1078,8 @@ void FoxAstDestroyer::Do(FoxAstNode* node)
     else if (node->NodeType == FX_AST_BINOP) {
         FoxAstBinop* binop = reinterpret_cast<FoxAstBinop*>(node);
 
-        Do(binop->Left);
-        Do(binop->Right);
+        Do(binop->pLeft);
+        Do(binop->pRight);
 
         FX_SCRIPT_FREE(FoxAstBinop, binop);
     }

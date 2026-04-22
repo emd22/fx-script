@@ -54,7 +54,7 @@ void FoxIREmitter::Emit(FoxAstNode* node)
     // else if (node->NodeType == FX_AST_ACTIONDECL) {
     //     return EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(node));
     // }
-    else if (node->NodeType == FX_AST_ACTIONCALL) {
+    else if (node->NodeType == FX_AST_PROCCALL) {
         return DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(node));
     }
     else if (node->NodeType == FX_AST_ASSIGN) {
@@ -79,10 +79,10 @@ void FoxIREmitter::Emit(FoxAstNode* node)
                     EmitJumpReturnToCallerInt32(literal->Value.ValueInt);
                 }
                 else if (literal->Value.Type == FoxValue::REF) {
-                    const FoxAstVarRef* var_ref = literal->Value.ValueRef;
+                    const FoxAstVarRef* var_ref = literal->Value.pValueRef;
 
                     // Get the variable and load it into a register.
-                    FoxBytecodeVarHandle* var_to_return = FindVarHandle(var_ref->Name->GetHash());
+                    FoxBytecodeVarHandle* var_to_return = FindVarHandle(var_ref->pName->GetHash());
 
                     FoxIRRegister return_result_reg = FX_IR_REG_RETURN_VALUE;
 
@@ -441,7 +441,7 @@ void FoxIREmitter::EmitVariableGetInt32(uint16 var_index, FoxIRRegister dest_reg
 
 void FoxIREmitter::EmitParamsStart()
 {
-    WriteOp(IrBase_Marker, IrSpecMarker_ParamsBegin);
+    WriteOp(IrBase_Marker, IrSpecMarker_ParamPushBlockBegin);
 }
 
 void FoxIREmitter::EmitType(FoxValue::ValueType type)
@@ -492,18 +492,18 @@ FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* 
 {
     bool rhs_is_binop = false;
 
-    FoxIRRegister lhs_register = EmitRhsToRegister(binop->Left, FX_IR_NONE, true);
+    FoxIRRegister lhs_register = EmitRhsToRegister(binop->pLeft, FX_IR_NONE, true);
     FoxIRRegister rhs_register = FX_IR_NONE;
 
-    if (binop->Right->NodeType == FX_AST_BINOP) {
+    if (binop->pRight->NodeType == FX_AST_BINOP) {
         rhs_is_binop = true;
 
-        FoxAstBinop* binop_node = reinterpret_cast<FoxAstBinop*>(binop->Right);
+        FoxAstBinop* binop_node = reinterpret_cast<FoxAstBinop*>(binop->pRight);
         MarkRegisterFree(rhs_register);
-        rhs_register = EmitRhsToRegister(binop_node->Left, FX_IR_NONE, true);
+        rhs_register = EmitRhsToRegister(binop_node->pLeft, FX_IR_NONE, true);
     }
     else {
-        rhs_register = EmitRhsToRegister(binop->Right, FX_IR_NONE, true);
+        rhs_register = EmitRhsToRegister(binop->pRight, FX_IR_NONE, true);
     }
 
     if (binop->OpToken->Type == TT::Plus) {
@@ -518,8 +518,8 @@ FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* 
 
         FoxAstBinop second_binop;
         second_binop.OpToken = binop->OpToken;
-        second_binop.Left = binop->Left;
-        second_binop.Right = reinterpret_cast<FoxAstBinop*>(binop->Right)->Right;
+        second_binop.pLeft = binop->pLeft;
+        second_binop.pRight = reinterpret_cast<FoxAstBinop*>(binop->pRight)->pRight;
 
         lhs_register = EmitBinop(&second_binop, handle);
     }
@@ -538,7 +538,7 @@ FoxIRRegister FoxIREmitter::EmitBinop(FoxAstBinop* binop, FoxBytecodeVarHandle* 
 
 FoxIRRegister FoxIREmitter::EmitVarFetch(FoxAstVarRef* ref, RhsMode mode)
 {
-    FoxBytecodeVarHandle* var_handle = FindVarHandle(ref->Name->GetHash());
+    FoxBytecodeVarHandle* var_handle = FindVarHandle(ref->pName->GetHash());
 
     // bool force_absolute_load = false;
 
@@ -661,9 +661,9 @@ void FoxIREmitter::DoSaveReg32(uint32 stack_offset, FoxIRRegister reg, bool forc
 
 void FoxIREmitter::EmitAssign(FoxAstAssign* assign)
 {
-    FoxBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->Name->GetHash());
+    FoxBytecodeVarHandle* var_handle = FindVarHandle(assign->Var->pName->GetHash());
     if (var_handle == nullptr) {
-        FoxLogError("Var '{:.{}}' does not exist!", assign->Var->Name->Start, assign->Var->Name->Length);
+        FoxLogError("Var '{:.{}}' does not exist!", assign->Var->pName->Start, assign->Var->pName->Length);
         return;
     }
 
@@ -791,7 +791,7 @@ FoxIRRegister FoxIREmitter::EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister des
         }
 
         else if (literal->Value.Type == FoxValue::REF) {
-            FoxHash var_name_hash = literal->Value.ValueRef->Name->GetHash();
+            FoxHash var_name_hash = literal->Value.pValueRef->pName->GetHash();
             FoxBytecodeVarHandle* var_handle = FindVarHandle(var_name_hash);
 
             if (!var_handle) {
@@ -830,7 +830,7 @@ FoxIRRegister FoxIREmitter::EmitRhsToRegister(FoxAstNode* rhs, FoxIRRegister des
 
         return dest_register;
     }
-    else if (rhs->NodeType == FX_AST_ACTIONCALL) {
+    else if (rhs->NodeType == FX_AST_PROCCALL) {
         DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(rhs));
 
         // Move return value into our destination register
@@ -859,7 +859,7 @@ FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode,
         }
         else if (literal->Value.Type == FoxValue::REF) {
             // Reference another value, load from memory into register
-            FoxIRRegister output_register = EmitVarFetch(literal->Value.ValueRef, mode);
+            FoxIRRegister output_register = EmitVarFetch(literal->Value.pValueRef, mode);
             if (mode == IRRhsMode::RHS_ASSIGN_TO_HANDLE) {
                 // DoSaveReg32(handle->Offset, output_register);
                 EmitVariableSetReg32(handle->VarIndexInScope, output_register);
@@ -871,14 +871,14 @@ FoxIRRegister FoxIREmitter::EmitRhs(FoxAstNode* rhs, FoxIREmitter::RhsMode mode,
         return FX_IR_GW3;
     }
 
-    else if (rhs->NodeType == FX_AST_ACTIONCALL || rhs->NodeType == FX_AST_BINOP) {
+    else if (rhs->NodeType == FX_AST_PROCCALL || rhs->NodeType == FX_AST_BINOP) {
         FoxIRRegister result_register = FX_IR_GW3;
 
         if (rhs->NodeType == FX_AST_BINOP) {
             result_register = EmitBinop(reinterpret_cast<FoxAstBinop*>(rhs), handle);
         }
 
-        else if (rhs->NodeType == FX_AST_ACTIONCALL) {
+        else if (rhs->NodeType == FX_AST_PROCCALL) {
             DoFunctionCall(reinterpret_cast<FoxAstFunctionCall*>(rhs));
             // Function results are stored in XR
             result_register = FX_IR_REG_RETURN_VALUE;
@@ -1130,7 +1130,7 @@ void FoxIREmitter::EmitFunctionDefinitionsInBlock(FoxAstBlock* block)
     }
 
     for (FoxAstNode* stmt : block->Statements) {
-        if (stmt->NodeType == FX_AST_ACTIONDECL) {
+        if (stmt->NodeType == FX_AST_PROCDECL) {
             EmitFunction(reinterpret_cast<FoxAstFunctionDecl*>(stmt));
         }
     }
@@ -1271,7 +1271,7 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
         }
 
         // Ignore function definitions when emitting the block statements as they are handled elsewhere!
-        if (node->NodeType == FX_AST_ACTIONDECL) {
+        if (node->NodeType == FX_AST_PROCDECL) {
             continue;
         }
         else if (node->NodeType == FX_AST_VARDECL) {
@@ -1308,7 +1308,7 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
     EmitMarker(IrSpecMarker_FrameBegin);
 
     if (params_to_save != 0) {
-        EmitMarker(IrSpecMarker_ParamRegBlockBegin);
+        EmitMarker(IrSpecMarker_ParamsBegin);
 
         for (int i = 0; i < params_to_save; i++) {
             uint32 base_var_index = (mVarsInScope - params_to_save);
@@ -1317,7 +1317,7 @@ void FoxIREmitter::EmitBlock(FoxAstBlock* block, int params_to_save, bool ignore
             MarkRegisterFree(static_cast<FoxIRRegister>(FX_IR_PARAMREG0 + i));
         }
 
-        EmitMarker(IrSpecMarker_ParamRegBlockEnd);
+        EmitMarker(IrSpecMarker_ParamsEnd);
     }
 
 
@@ -1357,7 +1357,7 @@ bool FoxIREmitter::DoesNodeBranch(FoxAstNode* node)
         return false;
     }
 
-    if (node->NodeType == FX_AST_ACTIONCALL) {
+    if (node->NodeType == FX_AST_PROCCALL) {
         return true;
     }
 
@@ -1379,7 +1379,7 @@ bool FoxIREmitter::DoesNodeBranch(FoxAstNode* node)
     }
     else if (node->NodeType == FX_AST_BINOP) {
         FoxAstBinop* binop = reinterpret_cast<FoxAstBinop*>(node);
-        return (DoesNodeBranch(binop->Left) || DoesNodeBranch(binop->Right));
+        return (DoesNodeBranch(binop->pLeft) || DoesNodeBranch(binop->pRight));
     }
 
     else if (node->NodeType == FX_AST_ASSIGN) {
@@ -1591,14 +1591,14 @@ void FoxIRPrinter::DoMarker(char* s, uint8 op_base, uint8 op_spec)
     else if (op_spec == IrSpecMarker_FrameEnd) {
         BC_PRINT_OP("@FrameEnd");
     }
-    else if (op_spec == IrSpecMarker_ParamsBegin) {
+    else if (op_spec == IrSpecMarker_ParamPushBlockBegin) {
         BC_PRINT_OP("@Params");
     }
-    else if (op_spec == IrSpecMarker_ParamRegBlockBegin) {
-        BC_PRINT_OP("@ParamRegBlockBegin");
+    else if (op_spec == IrSpecMarker_ParamsBegin) {
+        BC_PRINT_OP("PARAMS BEGIN");
     }
-    else if (op_spec == IrSpecMarker_ParamRegBlockEnd) {
-        BC_PRINT_OP("@ParamRegBlockEnd");
+    else if (op_spec == IrSpecMarker_ParamsEnd) {
+        BC_PRINT_OP("PARAMS END");
     }
     else if (op_spec == IrSpecMarker_EntryPoint) {
         BC_PRINT_OP("@Entry");

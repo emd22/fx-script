@@ -1,10 +1,40 @@
-local int some_value = 20;
 
-
-proc test(int x) int {
-    return x + 5;
+proc AdditionTest(int x) int
+{
+    local int y = 5;
+    local int z = x + y;
+    return z;
 }
 
-local int return_value = some_value + test(2);
 
-return return_value;
+proc ScriptEntry()
+{
+    AdditionTest(10);
+}
+
+
+
+/*
+
+DEFINE [int32] 4245442695 AS $0
+
+PROC AdditionTest
+DEFINE [int32] 4228665076 AS $1
+vget [i32] $0, GW0
+move [i32] GW1, 5
+add [i32] GW0, GW1
+vset [r32] $1, GW0
+move [r32] PARAMREG0, GW0
+ret [r32] RETVAL
+
+PROC END
+
+PROC ScriptEntry
+@Branches
+@Params
+move [i32] PARAMREG0, 10
+calla 745289313
+ret
+
+PROC END
+*/

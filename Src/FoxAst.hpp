@@ -63,7 +63,7 @@ struct FoxValue
         float ValueVec3[3];
         char* ValueString;
 
-        FoxAstVarRef* ValueRef;
+        FoxAstVarRef* pValueRef;
     };
 
     FoxValue()
@@ -91,7 +91,7 @@ struct FoxValue
             ValueString = other.ValueString;
         }
         else if (other.Type == REF) {
-            ValueRef = other.ValueRef;
+            pValueRef = other.pValueRef;
         }
     }
 
@@ -111,7 +111,7 @@ struct FoxValue
             printf("String, %s]\n", ValueString);
         }
         else if (Type == REF) {
-            printf("Ref, %p]\n", ValueRef);
+            printf("Ref, %p]\n", pValueRef);
         }
     }
 
@@ -141,8 +141,8 @@ enum FoxAstType
     FX_AST_ASSIGN,
 
     // Functions
-    FX_AST_ACTIONDECL,
-    FX_AST_ACTIONCALL,
+    FX_AST_PROCDECL,
+    FX_AST_PROCCALL,
     FX_AST_RETURN,
 
     FX_AST_DOCCOMMENT,
@@ -175,8 +175,8 @@ struct FoxAstBinop : public FoxAstNode
     }
 
     FoxTokenizer::Token* OpToken = nullptr;
-    FoxAstNode* Left = nullptr;
-    FoxAstNode* Right = nullptr;
+    FoxAstNode* pLeft = nullptr;
+    FoxAstNode* pRight = nullptr;
 };
 
 struct FoxAstBlock : public FoxAstNode
@@ -196,7 +196,7 @@ struct FoxAstVarRef : public FoxAstNode
         this->NodeType = FX_AST_VARREF;
     }
 
-    FoxTokenizer::Token* Name = nullptr;
+    FoxTokenizer::Token* pName = nullptr;
     FoxScope* Scope = nullptr;
 };
 
@@ -241,7 +241,7 @@ struct FoxAstFunctionDecl : public FoxAstNode
 {
     FoxAstFunctionDecl()
     {
-        this->NodeType = FX_AST_ACTIONDECL;
+        this->NodeType = FX_AST_PROCDECL;
     }
 
     FoxTokenizer::Token* Name = nullptr;
@@ -267,7 +267,7 @@ struct FoxAstFunctionCall : public FoxAstNode
 {
     FoxAstFunctionCall()
     {
-        this->NodeType = FX_AST_ACTIONCALL;
+        this->NodeType = FX_AST_PROCCALL;
     }
 
     FoxFunction* Function = nullptr;

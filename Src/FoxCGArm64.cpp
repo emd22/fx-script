@@ -316,14 +316,14 @@ void FoxIRToArm64::DoMarker(char* s, uint8 op_base, uint8 op_spec)
 
         // Reset the current stack frame
     }
-    else if (op_spec == IrSpecMarker_ParamsBegin) {
+    else if (op_spec == IrSpecMarker_ParamPushBlockBegin) {
         mInParamsBlock = true;
     }
 
-    else if (op_spec == IrSpecMarker_ParamRegBlockBegin) {
+    else if (op_spec == IrSpecMarker_ParamsBegin) {
         mInParamsBlock = true;
     }
-    else if (op_spec == IrSpecMarker_ParamRegBlockEnd) {
+    else if (op_spec == IrSpecMarker_ParamsEnd) {
         mInParamsBlock = false;
     }
 
