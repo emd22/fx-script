@@ -1,0 +1,19 @@
+// External functions can manually define the clobber list. If the clobber list is not specified,
+// it is assumed that PARAMREG0 to PARAMREG3 and GW0 to GW7(per ARM calling conv) are clobbered.
+
+extfn _putchar(int _ch) CLOBBERS PARAMREG0, PARAMREG1, GW0, GW1, GW2, GW3;
+
+fn printch(int ch, int add)
+{
+    local int value = ch + add;
+    _putchar(value);
+
+    return;
+}
+
+local int offset = 2;
+
+printch(65, offset);
+printch(66, offset);
+
+return 0;

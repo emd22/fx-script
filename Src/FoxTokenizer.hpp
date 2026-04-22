@@ -1,14 +1,14 @@
 #pragma once
 
-#include "FxScriptUtil.hpp"
-#include "FxMPPagedArray.hpp"
+#include "FoxMPPagedArray.hpp"
+#include "FoxScriptUtil.hpp"
 
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
-#include <cassert>
 #include <string>
 
-class FxTokenizer
+class FoxTokenizer
 {
 private:
 public:
@@ -16,16 +16,17 @@ public:
 
     struct State
     {
-        char* Data = nullptr;
-        char* DataEnd = nullptr;
-        bool InString = false;
+        char* pData = nullptr;
+        char* pDataEnd = nullptr;
+        bool bInString = false;
 
         uint32 FileLine = 0;
-        char* StartOfLine = nullptr;
+        char* pStartOfLine = nullptr;
     };
 
 
-    enum TokenType {
+    enum TokenType
+    {
         Unknown,
         Identifier,
 
@@ -60,33 +61,23 @@ public:
     static const char* GetTypeName(TokenType type)
     {
         const char* type_names[] = {
-            "Unknown",
-            "Identifier",
+            "Unknown",    "Identifier",
 
-            "String",
-            "Integer",
-            "Float",
+            "String",     "Integer",    "Float",
 
             "Equals",
 
-            "LParen",
-            "RParen",
+            "LParen",     "RParen",
 
-            "LBracket",
-            "RBracket",
+            "LBracket",   "RBracket",
 
-            "LBrace",
-            "RBrace",
+            "LBrace",     "RBrace",
 
-            "Plus",
-            "Dollar",
-            "Minus",
+            "Plus",       "Dollar",     "Minus",
 
             "Question",
 
-            "Dot",
-            "Comma",
-            "Semicolon",
+            "Dot",        "Comma",      "Semicolon",
 
             "DocComment",
         };
@@ -98,10 +89,11 @@ public:
         return type_names[type];
     }
 
-    enum class IsNumericResult {
+    enum class IsNumericResult
+    {
         NaN,
         Integer,
-        Fractional
+        Frfunctional
     };
 
     struct Token
@@ -109,14 +101,14 @@ public:
         char* Start = nullptr;
         char* End = nullptr;
 
-        FxHash Hash = 0;
+        FoxHash Hash = 0;
         TokenType Type = TokenType::Unknown;
         uint32 Length = 0;
 
         uint16 FileColumn = 0;
         uint32 FileLine = 0;
 
-        void Print(bool no_newline=false) const
+        void Print(bool no_newline = false) const
         {
             printf("Token: (T:%-10s) {%.*s} %c", GetTypeName(Type), Length, Start, (no_newline) ? ' ' : '\n');
         }
@@ -136,7 +128,7 @@ public:
             char* str = static_cast<char*>(FX_SCRIPT_ALLOC_MEMORY(char, (Length + 1)));
 
             if (str == nullptr) {
-                FxPanic("FxTokenizer", "Error allocating heap string!", 0);
+                FoxPanic("FoxTokenizer", "Error allocating heap string!", 0);
                 return nullptr;
             }
 
@@ -146,12 +138,12 @@ public:
             return str;
         }
 
-        FxHash GetHash()
+        FoxHash GetHash()
         {
             if (Hash != 0) {
                 return Hash;
             }
-            return (Hash = FxHashStr(Start, Length));
+            return (Hash = FoxHashStr(Start, Length));
         }
 
         IsNumericResult IsNumeric() const
@@ -163,13 +155,13 @@ public:
             for (int i = 0; i < Length; i++) {
                 ch = Start[i];
 
-                // If there is a number preceding the dot then we are a fractional
+                // If there is a number preceding the dot then we are a frfunctional
                 if (ch == '.' && result != IsNumericResult::NaN) {
-                    result = IsNumericResult::Fractional;
+                    result = IsNumericResult::Frfunctional;
                     continue;
                 }
 
-                if ((ch >= '0' && ch <= '9') ) {
+                if ((ch >= '0' && ch <= '9')) {
                     // If no numbers have been found yet then set to integer
                     if (result == IsNumericResult::NaN) {
                         result = IsNumericResult::Integer;
@@ -188,7 +180,7 @@ public:
         int64 ToInt() const
         {
             char buffer[32];
-            
+
             std::strncpy(buffer, Start, Length);
             buffer[Length] = 0;
 
@@ -206,7 +198,7 @@ public:
             return strtof(buffer, &end);
         }
 
-        bool operator == (const char* str) const
+        bool operator==(const char* str) const
         {
             return !strncmp(Start, str, Length);
         }
@@ -224,10 +216,9 @@ public:
         }
     };
 
-    FxTokenizer() = delete;
+    FoxTokenizer() = delete;
 
-    FxTokenizer(char* data, uint32 buffer_size)
-        : mData(data), mDataEnd(data + buffer_size), mStartOfLine(data)
+    FoxTokenizer(char* data, uint32 buffer_size) : mpData(data), mpDataEnd(data + buffer_size), mpLinePtr(data)
     {
     }
 
@@ -242,7 +233,7 @@ public:
         switch (is_numeric) {
         case IsNumericResult::Integer:
             return TokenType::Integer;
-        case IsNumericResult::Fractional:
+        case IsNumericResult::Frfunctional:
             return TokenType::Float;
         case IsNumericResult::NaN:
             break;
@@ -305,27 +296,27 @@ public:
         }
 
         if (end_ptr == nullptr) {
-            end_ptr = mData;
+            end_ptr = mpData;
         }
 
         if (start_ptr == nullptr) {
-            start_ptr = mData;
+            start_ptr = mpData;
         }
 
-        token.End = mData;
+        token.End = mpData;
         token.Type = GetTokenType(token);
 
         mTokens.Insert(token);
         token.Clear();
 
-        token.Start = mData;
+        token.Start = mpData;
 
         uint16 column = 1;
-        if (mStartOfLine) {
-            column = static_cast<uint16>((mData - mStartOfLine));
+        if (mpLinePtr) {
+            column = static_cast<uint16>((mpData - mpLinePtr));
         }
         token.FileColumn = column;
-        token.FileLine = mFileLine + 1;
+        token.FileLine = mLineNumber + 1;
     }
 
     bool CheckOperators(Token& current_token, char ch)
@@ -338,15 +329,15 @@ public:
 
         if (is_operator) {
             // If there is data waiting, submit to the token list
-            SubmitTokenIfData(current_token, mData);
+            SubmitTokenIfData(current_token, mpData);
 
             // Submit the operator as its own token
             current_token.Increment();
 
-            char* end_of_operator = mData;
-            ++mData;
+            char* end_of_operator = mpData;
+            ++mpData;
 
-            SubmitTokenIfData(current_token, end_of_operator, mData);
+            SubmitTokenIfData(current_token, end_of_operator, mpData);
 
             return true;
         }
@@ -357,16 +348,17 @@ public:
     uint32 ReadQuotedString(char* buffer, uint32 max_size, bool skip_on_success = true)
     {
         char ch;
-        char* data = mData;
+        char* data = mpData;
 
         uint32 buf_size = 0;
 
-        if (data >= mDataEnd) {
+        if (data >= mpDataEnd) {
             return 0;
         }
 
         // Skip spaces and tabs
-        while ((ch = *(data)) && (ch == ' ' || ch == '\t')) ++data;
+        while ((ch = *(data)) && (ch == ' ' || ch == '\t'))
+            ++data;
 
         // Check if this is a string
         if (ch != '"') {
@@ -392,7 +384,7 @@ public:
         }
 
         if (skip_on_success) {
-            mData = data;
+            mpData = data;
         }
 
         buffer[buf_size] = 0;
@@ -405,9 +397,9 @@ public:
         char ch;
         int expected_index = 0;
 
-        char* data = mData;
+        char* data = mpData;
 
-        while (data < mDataEnd && ((ch = *(data)))) {
+        while (data < mpDataEnd && ((ch = *(data)))) {
             if (!expected_value[expected_index]) {
                 break;
             }
@@ -421,7 +413,7 @@ public:
         }
 
         if (skip_on_success) {
-            mData = data;
+            mpData = data;
         }
 
         return true;
@@ -429,7 +421,7 @@ public:
 
     void IncludeFile(char* path)
     {
-        FILE* fp = FxUtil::FileOpen(path, "rb");
+        FILE* fp = FoxUtil::FileOpen(path, "rb");
         if (!fp) {
             printf("Could not open include file '%s'\n", path);
             return;
@@ -441,9 +433,9 @@ public:
         // Save the current state of the tokenizer
         SaveState();
 
-        mData = include_data;
-        mDataEnd = include_data + include_size;
-        mInString = false;
+        mpData = include_data;
+        mpDataEnd = include_data + include_size;
+        mbInString = false;
 
         // Tokenize all of the included file
         Tokenize();
@@ -451,7 +443,7 @@ public:
         // Restore back to previous state
         RestoreState();
 
-        //FxMemPool::Free(include_data);
+        // FoxMemPool::Free(include_data);
     }
 
     void TryReadInternalCall()
@@ -494,8 +486,8 @@ public:
     {
         const bool is_newline = (ch == '\n');
         if (is_newline) {
-            ++mFileLine;
-            mStartOfLine = mData;
+            ++mLineNumber;
+            mpLinePtr = mpData;
         }
         return is_newline;
     }
@@ -507,23 +499,23 @@ public:
         }
 
         Token current_token;
-        current_token.Start = mData;
+        current_token.Start = mpData;
 
         bool in_comment = false;
         bool is_doccomment = false;
 
         char ch;
 
-        while (mData < mDataEnd && ((ch = *(mData)))) {
-            if (ch == '/' && ((mData + 1) < mDataEnd) && ((*(mData + 1)) == '/')) {
+        while (mpData < mpDataEnd && ((ch = *(mpData)))) {
+            if (ch == '/' && ((mpData + 1) < mpDataEnd) && ((*(mpData + 1)) == '/')) {
                 SubmitTokenIfData(current_token);
                 in_comment = true;
 
-                ++mData;
-                if (*(++mData) == '?') {
-                    while ((ch = *(++mData))) {
+                ++mpData;
+                if (*(++mpData) == '?') {
+                    while ((ch = *(++mpData))) {
                         if (isalnum(ch) || ch == '\n') {
-                            current_token.Start = mData;
+                            current_token.Start = mpData;
                             break;
                         }
                     }
@@ -531,15 +523,15 @@ public:
                 }
             }
 
-            if (ch == '/' && ((mData + 1) < mDataEnd) && ((*(mData + 1)) == '*')) {
+            if (ch == '/' && ((mpData + 1) < mpDataEnd) && ((*(mpData + 1)) == '*')) {
                 SubmitTokenIfData(current_token);
                 in_comment = true;
 
-                ++mData;
+                ++mpData;
 
-                while ((mData + 1 < mDataEnd) && (ch = *(++mData))) {
-                    if (ch == '*' && ((mData + 1) < mDataEnd) && (*(mData + 1) == '/')) {
-                        current_token.Start = mData;
+                while ((mpData + 1 < mpDataEnd) && (ch = *(++mpData))) {
+                    if (ch == '*' && ((mpData + 1) < mpDataEnd) && (*(mpData + 1) == '/')) {
+                        current_token.Start = mpData;
                         break;
                     }
                 }
@@ -549,7 +541,7 @@ public:
             // below by the IsWhitespace check.
             if (in_comment) {
                 if (!IsNewline(ch)) {
-                    ++mData;
+                    ++mpData;
                     if (is_doccomment) {
                         current_token.Increment();
                     }
@@ -571,26 +563,26 @@ public:
 
             if (ch == '"') {
                 // If we are not currently in a string, submit the token if there is data waiting
-                if (!mInString) {
+                if (!mbInString) {
                     SubmitTokenIfData(current_token);
                 }
 
-                mInString = !mInString;
+                mbInString = !mbInString;
             }
 
-            if (mInString) {
-                ++mData;
+            if (mbInString) {
+                ++mpData;
                 current_token.Increment();
                 continue;
             }
 
             // Internal call
             if (ch == '@') {
-                ++mData;
+                ++mpData;
                 TryReadInternalCall();
 
                 current_token.Length = 0;
-                current_token.Start = mData;
+                current_token.Start = mpData;
 
                 continue;
             }
@@ -598,8 +590,8 @@ public:
             if (IsWhitespace(ch)) {
                 SubmitTokenIfData(current_token);
 
-                mData++;
-                current_token.Start = mData;
+                mpData++;
+                current_token.Start = mpData;
                 continue;
             }
 
@@ -607,7 +599,7 @@ public:
                 continue;
             }
 
-            mData++;
+            mpData++;
             current_token.Increment();
         }
         SubmitTokenIfData(current_token);
@@ -615,34 +607,33 @@ public:
 
     size_t GetTokenIndexInFile(Token& token) const
     {
-        assert(token.Start > mData);
-        return (token.Start - mData);
+        assert(token.Start > mpData);
+        return (token.Start - mpData);
     }
 
-    FxMPPagedArray<Token>& GetTokens()
+    FoxMPPagedArray<Token>& GetTokens()
     {
         return mTokens;
     }
 
     void SaveState()
     {
-        mSavedState.Data = mData;
-        mSavedState.DataEnd = mDataEnd;
-        mSavedState.InString = mInString;
+        mSavedState.pData = mpData;
+        mSavedState.pDataEnd = mpDataEnd;
+        mSavedState.bInString = mbInString;
 
-        mSavedState.FileLine = mFileLine;
-        mSavedState.StartOfLine = mStartOfLine;
+        mSavedState.FileLine = mLineNumber;
+        mSavedState.pStartOfLine = mpLinePtr;
     }
 
     void RestoreState()
     {
-        mData = mSavedState.Data;
-        mDataEnd = mSavedState.DataEnd;
-        mInString = mSavedState.InString;
+        mpData = mSavedState.pData;
+        mpDataEnd = mSavedState.pDataEnd;
+        mbInString = mSavedState.bInString;
 
-        mFileLine = mSavedState.FileLine;
-        mStartOfLine = mSavedState.StartOfLine;
-
+        mLineNumber = mSavedState.FileLine;
+        mpLinePtr = mSavedState.pStartOfLine;
     }
 
 private:
@@ -654,13 +645,29 @@ private:
 private:
     State mSavedState;
 
-    char* mData = nullptr;
-    char* mDataEnd = nullptr;
+    char* mpData = nullptr;
+    char* mpDataEnd = nullptr;
 
-    bool mInString = false;
+    bool mbInString = false;
 
-    uint32 mFileLine = 0;
-    char* mStartOfLine = nullptr;
+    uint32 mLineNumber = 0;
+    char* mpLinePtr = nullptr;
 
-    FxMPPagedArray<Token> mTokens;
+    FoxMPPagedArray<Token> mTokens;
+};
+
+
+template <>
+struct std::formatter<FoxTokenizer::Token>
+{
+    constexpr auto parse(format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    constexpr auto format(const FoxTokenizer::Token& obj, std::format_context& ctx) const
+    {
+        const std::string str(obj.Start, obj.Length);
+        return std::format_to(ctx.out(), "(Type={}, {})", FoxTokenizer::GetTypeName(obj.Type), str);
+    }
 };

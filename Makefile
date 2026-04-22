@@ -4,7 +4,7 @@ LINKFLAGS := -lc++
 
 BUILD_DIR := build
 
-SRC := FxScript.cpp Main.cpp
+SRC := FoxScript.cpp FoxLog.cpp FoxAst.cpp FoxIR.cpp FoxBytecode.cpp FoxCGArm64.cpp FoxParser.cpp Main.cpp
 OBJ := $(SRC:%.cpp=$(BUILD_DIR)/%.o)
 DEP := $(OBJ:.o=.d)  # dependency files
 TARGET := fxscript
@@ -14,7 +14,7 @@ all: $(TARGET)
 $(TARGET): $(OBJ)
 	$(CXX) $(LINKFLAGS) -o $@ $^
 
-$(BUILD_DIR)/%.o: %.cpp | $(BUILD_DIR)
+$(BUILD_DIR)/%.o: Src/%.cpp | $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 $(BUILD_DIR):
