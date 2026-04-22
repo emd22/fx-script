@@ -68,7 +68,7 @@ enum BcSpecJump : uint8
 
     BcSpecJump_ReturnToCaller,
     BcSpecJump_ReturnToCaller_Int32,
-    BcSpecJump_ReturnToCaller_Reg32,
+    BcSpecJump_ReturnToCaller_Value,
 
     BcSpecJump_CallExternal,
 };

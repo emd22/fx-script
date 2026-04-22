@@ -16,25 +16,31 @@ proc ScriptEntry()
 
 /*
 
-DEFINE [int32] 4245442695 AS $0
+@Entry
+@FrameBegin
+VDEFINE [int32] 4245442695 AS $0
 
 PROC AdditionTest
-DEFINE [int32] 4228665076 AS $1
-vget [i32] $0, GW0
-move [i32] GW1, 5
-add [i32] GW0, GW1
-vset [r32] $1, GW0
-move [r32] PARAMREG0, GW0
-ret [r32] RETVAL
+VDEFINE [int32] 4228665076 AS $1
+VDEFINE [int32] 4278997933 AS $2
+VSET [int32] $1, 5
+VPUSH [int32] 0
+VPUSH [int32] 1
+ADD [int32]
+VPOP [i32] $2
+VPUSH [int32] 2
+VRET
 
 PROC END
 
 PROC ScriptEntry
 @Branches
 @Params
-move [i32] PARAMREG0, 10
+push [i32] 10
 calla 745289313
-ret
+RET
 
 PROC END
+@FrameEnd
+
 */

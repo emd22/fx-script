@@ -104,7 +104,7 @@ private:
     void EmitMoveReg32(FoxIRRegister dest_reg, FoxIRRegister src_reg);
 
     void EmitParamsStart();
-    void EmitType(FoxValue::ValueType type);
+    void EmitType(FoxValue::eValueType type);
 
     uint32 EmitDataString(char* str, uint16 length);
 

@@ -44,7 +44,7 @@ struct FoxValue
 {
     static FoxValue None;
 
-    enum ValueType : uint16
+    enum eValueType : uint16
     {
         NONETYPE = 0x00,
         INT = 0x01,
@@ -54,7 +54,7 @@ struct FoxValue
         REF = 0x10
     };
 
-    ValueType Type = NONETYPE;
+    eValueType Type = NONETYPE;
 
     union
     {
@@ -70,11 +70,11 @@ struct FoxValue
     {
     }
 
-    explicit FoxValue(ValueType type, int value) : Type(type), ValueInt(value)
+    explicit FoxValue(eValueType type, int value) : Type(type), ValueInt(value)
     {
     }
 
-    explicit FoxValue(ValueType type, float value) : Type(type), ValueFloat(value)
+    explicit FoxValue(eValueType type, float value) : Type(type), ValueFloat(value)
     {
     }
 
@@ -327,7 +327,7 @@ public:
 struct FoxBytecodeVarHandle
 {
     FoxHash HashedName = 0;
-    FoxValue::ValueType Type = FoxValue::INT;
+    FoxValue::eValueType Type = FoxValue::INT;
     int64 Offset = 0;
 
     FoxIRRegister Register = FX_IR_NONE;

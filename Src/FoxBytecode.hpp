@@ -1,8 +1,10 @@
 #pragma once
 
 #include "FoxMPPagedArray.hpp"
+#include "FoxScriptBytecode.hpp"
 #include "FoxScriptUtil.hpp"
 #include "FoxVar.hpp"
+
 
 ////////////////////////////////////////////
 // IR Emitter
@@ -19,7 +21,6 @@ struct FoxIRFunctionRef
     uint32 Position = 0;
 };
 
-#include "FoxScriptBytecode.hpp"
 
 class FoxBytecodeEmitter
 {
@@ -97,7 +98,7 @@ private:
     void EmitJumpCallAbsolute(uint32 position);
 
     void EmitJumpReturnToCaller();
-    void EmitJumpReturnToCallerReg32(FoxIRRegister reg);
+    void EmitJumpReturnToCallerValue();
     void EmitJumpReturnToCallerInt32(int32 value);
 
     void EmitJumpCallExternal(FoxHash hashed_name);
@@ -115,7 +116,7 @@ private:
     void EmitMoveReg32(FoxIRRegister dest_reg, FoxIRRegister src_reg);
 
     void EmitParamsStart();
-    void EmitType(FoxValue::ValueType type);
+    void EmitType(FoxValue::eValueType type);
 
     uint32 EmitDataString(char* str, uint16 length);
 

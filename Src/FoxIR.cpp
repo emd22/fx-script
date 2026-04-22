@@ -444,7 +444,7 @@ void FoxIREmitter::EmitParamsStart()
     WriteOp(IrBase_Marker, IrSpecMarker_ParamPushBlockBegin);
 }
 
-void FoxIREmitter::EmitType(FoxValue::ValueType type)
+void FoxIREmitter::EmitType(FoxValue::eValueType type)
 {
     IrSpecType op_type = IrSpecType_Int;
 
@@ -945,7 +945,7 @@ FoxBytecodeVarHandle* FoxIREmitter::DoVarDeclare(FoxAstVarDecl* decl, VarDeclare
     FoxHash decl_hash = decl->Name->GetHash();
     FoxHash type_hash = decl->Type->GetHash();
 
-    FoxValue::ValueType value_type = FoxValue::INT;
+    FoxValue::eValueType value_type = FoxValue::INT;
 
     switch (type_hash) {
     case type_int:
@@ -1515,7 +1515,7 @@ void FoxIRPrinter::DoJump(char* s, uint8 op_base, uint8 op_spec)
     }
     else if (op_spec == IrSpecJump_CallAbsolute) {
         uint32 position = Read32();
-        BC_PRINT_OP("calla {}", position);
+        BC_PRINT_OP("CALL {}", position);
     }
     else if (op_spec == IrSpecJump_ReturnToCaller) {
         BC_PRINT_OP("ret");
